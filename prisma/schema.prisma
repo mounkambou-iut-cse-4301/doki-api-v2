@@ -1,0 +1,220 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum UserType {
+  PATIENT
+  MEDECIN
+  ADMIN
+  SUPERADMIN
+}
+
+enum ReservationType {
+  CALL
+  IN_PERSON
+}
+
+enum ReservationStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum AbonnementStatus {
+  PENDING
+  CONFIRMED
+}
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum TransactionType {
+  RESERVATION
+  ABONNEMENT
+}
+
+model User {
+  userId        Int      @id @default(autoincrement())
+  firstName     String
+  lastName      String
+  sex           Sex
+  email         String   @unique
+  phone         String   @unique
+  password      String
+  userType      UserType
+  acceptPrivacy Boolean  @default(false)
+  specialityId  Int?
+  city          String?
+  address       String?
+  addressHosp   String?
+  hospitalName  String?
+  longitude     Decimal? @db.Decimal(10, 8)
+  latitude      Decimal? @db.Decimal(10, 8)
+  profile       String?
+  weight        Decimal? @db.Decimal(5, 2)
+  matricule     String?
+  isBlock       Boolean  @default(false)
+  isVerified    Boolean  @default(false)
+
+  speciality    Speciality?    @relation(fields: [specialityId], references: [specialityId])
+  feedbacksMed  Feedback[]     @relation("MedecinFeedbacks")
+  feedbacksPat  Feedback[]     @relation("PatientFeedbacks")
+  favoritesMed  Favorite[]     @relation("MedecinFavorites")
+  favoritesPat  Favorite[]     @relation("PatientFavorites")
+  videos        Video[]
+  reservationsM Reservation[]  @relation("MedecinReservations")
+  reservationsP Reservation[]  @relation("PatientReservations")
+  plannings     Planning[]
+  abonnementsM  Abonnement[]   @relation("MedecinAbonnements")
+  abonnementsP  Abonnement[]   @relation("PatientAbonnements")
+  ordonnancesM  Ordonance[]    @relation("MedecinOrdonnances")
+  ordonnancesP  Ordonance[]    @relation("PatientOrdonnances")
+  soldes        SoldeMedecin[]
+}
+
+model Speciality {
+  specialityId                Int     @id @default(autoincrement())
+  name                        String
+  consultationPrice           Decimal @db.Decimal(10, 2)
+  planMonthAmount             Decimal @db.Decimal(10, 2)
+  numberOfTimePlanReservation Int
+  users                       User[]
+}
+
+model Feedback {
+  feedbackId Int     @id @default(autoincrement())
+  medecinId  Int
+  patientId  Int
+  note       Int
+  comment    String?
+
+  medecin User @relation("MedecinFeedbacks", fields: [medecinId], references: [userId])
+  patient User @relation("PatientFeedbacks", fields: [patientId], references: [userId])
+}
+
+model Favorite {
+  favoriteId Int @id @default(autoincrement())
+  medecinId  Int
+  patientId  Int
+
+  medecin User @relation("MedecinFavorites", fields: [medecinId], references: [userId])
+  patient User @relation("PatientFavorites", fields: [patientId], references: [userId])
+}
+
+model Video {
+  videoId     Int     @id @default(autoincrement())
+  title       String
+  path        String
+  description String?
+  category    String?
+  medecinId   Int
+
+  medecin User @relation(fields: [medecinId], references: [userId])
+}
+
+model Planning {
+  planningId Int     @id @default(autoincrement())
+  debutHour  String // TIME
+  endHour    String // TIME
+  lundi      Boolean @default(false)
+  mardi      Boolean @default(false)
+  mercredi   Boolean @default(false)
+  jeudi      Boolean @default(false)
+  vendredi   Boolean @default(false)
+  samedi     Boolean @default(false)
+  dimanche   Boolean @default(false)
+  isClosed   Boolean @default(false)
+  medecinId  Int
+
+  medecin User @relation(fields: [medecinId], references: [userId])
+}
+
+model Abonnement {
+  abonnementId  Int              @id @default(autoincrement())
+  medecinId     Int
+  patientId     Int
+  status        AbonnementStatus @default(PENDING)
+  debutDate     DateTime
+  endDate       DateTime
+  amount        Decimal?         @db.Decimal(10, 2)
+  transactionId Int?
+
+  medecin     User         @relation("MedecinAbonnements", fields: [medecinId], references: [userId])
+  patient     User         @relation("PatientAbonnements", fields: [patientId], references: [userId])
+  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+}
+
+model Reservation {
+  reservationId Int               @id @default(autoincrement())
+  date          DateTime
+  hour          DateTime
+  type          ReservationType
+  patientName   String
+  sex           Sex
+  age           Int?
+  description   String?
+  medecinId     Int
+  patientId     Int
+  location      String?
+  amount        Decimal?          @db.Decimal(10, 2)
+  transactionId Int?
+  status        ReservationStatus @default(PENDING)
+
+  medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
+  patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
+  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+}
+
+model SoldeMedecin {
+  soldeMedecinId Int     @id @default(autoincrement())
+  solde          Decimal @default(0) @db.Decimal(10, 2)
+  medecinId      Int
+
+  medecin User @relation(fields: [medecinId], references: [userId])
+}
+
+model Transaction {
+  transactionId Int               @id @default(autoincrement())
+  paymentId     String?
+  status        TransactionStatus @default(PENDING)
+  amount        Decimal           @db.Decimal(10, 2)
+  type          TransactionType
+
+  abonnements  Abonnement[]
+  reservations Reservation[]
+}
+
+model Ordonance {
+  ordonanceId     Int     @id @default(autoincrement())
+  dureeTraitement String? @db.VarChar(100)
+  traitement      Json?
+  comment         String?
+  medecinId       Int
+  patientId       Int
+  images          Json?
+
+  medecin User @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
+  patient User @relation("PatientOrdonnances", fields: [patientId], references: [userId])
+}

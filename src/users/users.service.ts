@@ -12,6 +12,30 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 import { UpdateMedecinDto } from './dto/update-medecin.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 
+const userSafeSelect = {
+  userId: true,
+  firstName: true,
+  lastName: true,
+  sex: true,
+  email: true,
+  phone: true,
+  acceptPrivacy: true,
+  city: true,
+  address: true,
+  addressHospital: true,
+  hospitalName: true,
+  longitude: true,
+  latitude: true,
+  profile: true,
+  weight: true,
+  matricule: true,
+  userType: true,
+  isBlock: true,
+  isVerified: true,
+  specialityId: true,
+};
+
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -244,9 +268,12 @@ async findAll(query: QueryUserDto) {
         }),
         this.prisma.user.count({ where }),
       ]);
-
+ const items1 = items.map(user => {
+      const { password, ...safe } = user;
+      return safe;
+    });
       return {
-        items,
+        items1,
         meta: {
           total,
           page,
@@ -291,7 +318,8 @@ async findAll(query: QueryUserDto) {
           messageE: `User with ID ${id} not found.`,
         });
       }
-      return user;
+    const { password, ...user1 } = user;
+      return user1;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       throw new BadRequestException({

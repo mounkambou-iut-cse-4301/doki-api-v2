@@ -49,18 +49,18 @@ export class SpecialitiesController {
   @Get()
   @ApiOperation({ summary: 'Lister les spécialités (pagination)' })
   @ApiResponse({ status: 200, description: 'Liste retournée.' })
-findAll(@Query() query: QuerySpecialityDto) {
-  // Conversion manuelle
-  const page  = parseInt(query.page  as any, 10) || 1;
-  const limit = parseInt(query.limit as any, 10) || 10;
-  return this.specialityService.findAll(page, limit);
-}
+  findAll(@Query() query: QuerySpecialityDto) {
+    // Conversion manuelle
+    const page = parseInt(query.page as any, 10) || 1;
+    const limit = parseInt(query.limit as any, 10) || 10;
+    return this.specialityService.findAll(page, limit);
+  }
 
-@Get(':id')
+  @Get(':id')
   @ApiOperation({ summary: 'Obtenir une spécialité par ID' })
   @ApiParam({
     name: 'id',
-    description: "ID de la spécialité à récupérer",
+    description: 'ID de la spécialité à récupérer',
     type: 'integer',
   })
   @ApiResponse({

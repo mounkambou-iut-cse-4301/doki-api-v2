@@ -35,7 +35,6 @@ const userSafeSelect = {
   specialityId: true,
 };
 
-
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -226,12 +225,12 @@ export class UsersService {
     }
   }
   // 4. GET ALL USERS AVEC FILTRES & PAGINATION
- // src/users/users.service.ts
-async findAll(query: QueryUserDto) {
+  // src/users/users.service.ts
+  async findAll(query: QueryUserDto) {
     try {
       // 1) Forcer page/limit à number
-      const page: number      = query.page  != null ? Number(query.page)  : 1;
-      const limit: number     = query.limit != null ? Number(query.limit) : 10;
+      const page: number = query.page != null ? Number(query.page) : 1;
+      const limit: number = query.limit != null ? Number(query.limit) : 10;
       if (page < 1 || limit < 1) {
         throw new BadRequestException({
           message: 'Page et limit doivent être >= 1',
@@ -241,37 +240,43 @@ async findAll(query: QueryUserDto) {
       const skip = (page - 1) * limit;
 
       // 2) Forcer specialityId
-      const specialityId = query.specialityId != null
-        ? Number(query.specialityId)
-        : undefined;
+      const specialityId =
+        query.specialityId != null ? Number(query.specialityId) : undefined;
 
       // 3) Construire le filtre `where`
       const where: any = {};
       if (query.name) {
         where.OR = [
           { firstName: { contains: query.name } },
-          { lastName:  { contains: query.name } },
+          { lastName: { contains: query.name } },
         ];
       }
-      if (query.userType)      where.userType     = query.userType;
-      if (typeof query.isBlock  === 'boolean') where.isBlock    = query.isBlock;
+      if (query.userType) where.userType = query.userType;
+      if (typeof query.isBlock === 'boolean') where.isBlock = query.isBlock;
       if (specialityId != null) where.specialityId = specialityId;
-      if (typeof query.isVerified === 'boolean') where.isVerified = query.isVerified;
+      if (typeof query.isVerified === 'boolean')
+        where.isVerified = query.isVerified;
 
       // 4) Exécuter la requête en transaction pour count + items
       const [items, total] = await this.prisma.$transaction([
         this.prisma.user.findMany({
           where,
+                  include: {
+          speciality: true,
+          feedbacksMed: true,
+          feedbacksPat: true,
+          plannings: true,
+        },
           skip,
           take: limit,
           orderBy: { firstName: 'asc' },
         }),
         this.prisma.user.count({ where }),
       ]);
- const items1 = items.map(user => {
-      const { password, ...safe } = user;
-      return safe;
-    });
+      const items1 = items.map((user) => {
+        const { password, ...safe } = user;
+        return safe;
+      });
       return {
         items1,
         meta: {
@@ -318,7 +323,7 @@ async findAll(query: QueryUserDto) {
           messageE: `User with ID ${id} not found.`,
         });
       }
-    const { password, ...user1 } = user;
+      const { password, ...user1 } = user;
       return user1;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;

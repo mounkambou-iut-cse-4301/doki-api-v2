@@ -24,6 +24,10 @@ export class CreateSpecialityDto {
   @Min(0)
   consultationPrice: number;
 
+  @ApiProperty({ description: 'Durée d’une consultation (minutes)' })
+  @IsNotEmpty() @IsNumber() @Min(1)
+  consultationDuration: number;
+
   @ApiProperty({
     description: 'Montant du plan mensuel en FCFA (>= 0)',
     minimum: 0,

@@ -98,6 +98,7 @@ model Speciality {
   specialityId                Int     @id @default(autoincrement())
   name                        String
   consultationPrice           Decimal @db.Decimal(10, 2)
+  consultationDuration     Int      // durée en minutes pour une consultation
   planMonthAmount             Decimal @db.Decimal(10, 2)
   numberOfTimePlanReservation Int
   users                       User[]
@@ -168,8 +169,8 @@ model Abonnement {
 
 model Reservation {
   reservationId Int               @id @default(autoincrement())
-  date          DateTime
-  hour          DateTime
+  date          String
+  hour          String
   type          ReservationType
   patientName   String
   sex           Sex

@@ -7,12 +7,14 @@ import {
   Param,
   Query,
   ParseIntPipe,
+  Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDateDto } from './dto/update-reservation-date.dto';
 import { QueryReservationDto } from './dto/query-reservation.dto';
+import { RateDoctorDto } from './dto/rate-doctor.dto';
 @ApiTags('reservations')
 @Controller('reservations')
 export class ReservationsController {
@@ -48,5 +50,26 @@ export class ReservationsController {
   @ApiResponse({ status: 200, description: 'Liste retournée.' })
   findAll(@Query() query: QueryReservationDto) {
     return this.svc.findAll(query);
+  }
+
+    @Patch(':id/complete')
+  @ApiOperation({ summary: 'Marquer une réservation comme complétée' })
+  @ApiParam({ name: 'id', type: 'integer' })
+  @ApiResponse({ status: 200, description: 'Réservation complétée.' })
+  complete(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.completeReservation(id);
+  }
+
+  @Post(':id/rate')
+  @ApiOperation({ summary: 'Noter le médecin d’une réservation complétée' })
+  @ApiParam({ name: 'id', type: 'integer' })
+  @ApiResponse({ status: 201, description: 'Feedback créé.' })
+  rate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RateDoctorDto,
+  ) {
+    return this.svc.rateDoctor(id, dto);
   }
 }

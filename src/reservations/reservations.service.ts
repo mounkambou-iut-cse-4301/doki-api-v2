@@ -1,17 +1,28 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
-import { ReservationStatus, TransactionStatus, TransactionType, UserType } from 'generated/prisma';
+import {
+  ReservationStatus,
+  TransactionStatus,
+  TransactionType,
+  UserType,
+} from 'generated/prisma';
 import { UpdateReservationDateDto } from './dto/update-reservation-date.dto';
 import { QueryReservationDto } from './dto/query-reservation.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { randomUUID } from 'crypto';
+import { RateDoctorDto } from './dto/rate-doctor.dto';
 
 @Injectable()
 export class ReservationsService {
-      constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-/** Créer une réservation en tenant compte de consultationDuration */
+  /** Créer une réservation en tenant compte de consultationDuration */
   async create(dto: CreateReservationDto) {
     // 1) Valider futur
     const dateTime = new Date(`${dto.date}T${dto.hour}`);
@@ -53,7 +64,15 @@ export class ReservationsService {
     }
 
     // 4) Jour + planning
-    const jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    const jours = [
+      'dimanche',
+      'lundi',
+      'mardi',
+      'mercredi',
+      'jeudi',
+      'vendredi',
+      'samedi',
+    ];
     const jour = jours[dateTime.getDay()];
     const plan = await this.prisma.planning.findFirst({
       where: { medecinId: dto.medecinId, [jour]: true },
@@ -70,10 +89,10 @@ export class ReservationsService {
       const [H, M] = h.split(':').map(Number);
       return H * 60 + M;
     };
-    const startMin   = toMin(dto.hour);
-    const endMin     = startMin + duration;
-    const planStart  = toMin(plan.debutHour);
-    const planEnd    = toMin(plan.endHour);
+    const startMin = toMin(dto.hour);
+    const endMin = startMin + duration;
+    const planStart = toMin(plan.debutHour);
+    const planEnd = toMin(plan.endHour);
 
     if (startMin < planStart || endMin > planEnd) {
       throw new BadRequestException({
@@ -86,7 +105,7 @@ export class ReservationsService {
     const others = await this.prisma.reservation.findMany({
       where: {
         medecinId: dto.medecinId,
-        date:      dto.date,
+        date: dto.date,
       },
     });
     for (const r of others) {
@@ -105,7 +124,7 @@ export class ReservationsService {
       const trx = await tx.transaction.create({
         data: {
           amount: dto.amount,
-          type:   TransactionType.RESERVATION,
+          type: TransactionType.RESERVATION,
           status: TransactionStatus.PENDING,
         },
       });
@@ -142,7 +161,7 @@ export class ReservationsService {
       }
     }, 10_000);
 
-    return { success: true, meme: 'https://i.imgflip.com/1bhk.jpg', reservation };
+    return { success: true, reservation };
   }
 
   /** Mettre à jour date+heure en tenant compte de consultationDuration */
@@ -180,7 +199,15 @@ export class ReservationsService {
     }
 
     // planning & jour
-    const jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    const jours = [
+      'dimanche',
+      'lundi',
+      'mardi',
+      'mercredi',
+      'jeudi',
+      'vendredi',
+      'samedi',
+    ];
     const jour = jours[newDt.getDay()];
     const plan = await this.prisma.planning.findFirst({
       where: { medecinId: existing.medecinId, [jour]: true },
@@ -200,7 +227,7 @@ export class ReservationsService {
     const sMin = toMin(dto.hour);
     const eMin = sMin + duration;
     const pStart = toMin(plan.debutHour);
-    const pEnd   = toMin(plan.endHour);
+    const pEnd = toMin(plan.endHour);
     if (sMin < pStart || eMin > pEnd) {
       throw new BadRequestException({
         message: `Hors horaire (${plan.debutHour}-${plan.endHour}).`,
@@ -212,7 +239,7 @@ export class ReservationsService {
     const others = await this.prisma.reservation.findMany({
       where: {
         medecinId: existing.medecinId,
-        date:      dto.date,
+        date: dto.date,
         reservationId: { not: id },
       },
     });
@@ -233,7 +260,7 @@ export class ReservationsService {
       data: { date: dto.date, hour: dto.hour },
     });
 
-    return { success: true, meme: 'https://i.imgflip.com/1bhk.jpg', reservation };
+    return { success: true, reservation };
   }
 
   /** 3. Récupérer par ID + relations */
@@ -242,8 +269,22 @@ export class ReservationsService {
       const res = await this.prisma.reservation.findUnique({
         where: { reservationId: id },
         include: {
-          medecin:   { select: { userId: true, firstName: true, lastName: true, email: true } },
-          patient:   { select: { userId: true, firstName: true, lastName: true, email: true } },
+          medecin: {
+            select: {
+              userId: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          patient: {
+            select: {
+              userId: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
           transaction: true,
         },
       });
@@ -264,56 +305,151 @@ export class ReservationsService {
   }
 
   /** 4. Liste paginée + filtres */
- async findAll(query: QueryReservationDto) {
-  try {
-    // pagination
-    const page: number  = query.page  != null ? Number(query.page)  : 1;
-    const limit: number = query.limit != null ? Number(query.limit) : 10;
-    if (page < 1 || limit < 1) {
+  async findAll(query: QueryReservationDto) {
+    try {
+      // pagination
+      const page: number = query.page != null ? Number(query.page) : 1;
+      const limit: number = query.limit != null ? Number(query.limit) : 10;
+      if (page < 1 || limit < 1) {
+        throw new BadRequestException({
+          message: 'Page et limit doivent être >= 1',
+          messageE: 'Page and limit must be >= 1',
+        });
+      }
+      const skip = (page - 1) * limit;
+
+      // filtres
+      const where: any = {};
+      if (query.medecinId) where.medecinId = Number(query.medecinId);
+      if (query.patientId) where.patientId = Number(query.patientId);
+      if (query.date) where.date = query.date; // chaîne YYYY-MM-DD
+      if (query.type) where.type = query.type;
+      if (query.status) where.status = query.status;
+
+      // exécution atomique find + count
+      const [items, total] = await this.prisma.$transaction([
+        this.prisma.reservation.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [{ date: 'asc' }, { hour: 'asc' }],
+        }),
+        this.prisma.reservation.count({ where }),
+      ]);
+
+      return {
+        items,
+        meta: {
+          total,
+          page,
+          limit,
+          lastPage: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException({
-        message: 'Page et limit doivent être >= 1',
-        messageE: 'Page and limit must be >= 1',
+        message: `Erreur récupération : ${error.message}`,
+        messageE: `Error fetching reservations: ${error.message}`,
       });
     }
-    const skip = (page - 1) * limit;
+  }
 
-    // filtres
-    const where: any = {};
-    if (query.medecinId) where.medecinId = Number(query.medecinId);
-    if (query.patientId) where.patientId = Number(query.patientId);
-    if (query.date)      where.date      = query.date;              // chaîne YYYY-MM-DD
-    if (query.type)      where.type      = query.type;
-    if (query.status)    where.status    = query.status;
+  async completeReservation(id: number) {
+    // 1) Charger la réservation + médecin + spécialité
+    const res = await this.prisma.reservation.findUnique({
+      where: { reservationId: id },
+      include: {
+        medecin: { include: { speciality: true } },
+      },
+    });
+    if (!res) {
+      throw new NotFoundException({
+        message: `Réservation ${id} introuvable.`,
+        messageE: `Reservation ${id} not found.`,
+      });
+    }
+    if (res.status !== ReservationStatus.PENDING) {
+      throw new BadRequestException({
+        message: `Impossible de compléter une réservation au statut '${res.status}'.`,
+        messageE: `Cannot complete reservation with status '${res.status}'.`,
+      });
+    }
 
-    // exécution atomique find + count
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.reservation.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [
-          { date: 'asc' },
-          { hour: 'asc' },
-        ],
-      }),
-      this.prisma.reservation.count({ where }),
-    ]);
+    // 2) S’assurer qu’on a bien la spécialité et sa durée
+    const { date, hour, medecin } = res;
+    if (!medecin.speciality) {
+      throw new BadRequestException({
+        message: 'Spécialité du médecin introuvable.',
+        messageE: 'Doctor speciality not found.',
+      });
+    }
+    const duration = medecin.speciality.consultationDuration;
+
+    // 3) Calculer l’heure de fin et vérifier l’attente de 30 min
+    const endDate = new Date(`${date}T${hour}`);
+    endDate.setMinutes(endDate.getMinutes() + duration);
+    const now = new Date();
+    if (now.getTime() < endDate.getTime() + 30 * 60 * 1000) {
+      throw new BadRequestException({
+        message: 'On ne peut pas compléter avant 30 min après la fin prévue.',
+        messageE: 'Cannot complete until 30 min after scheduled end.',
+      });
+    }
+
+    // 4) Mettre à jour le statut
+    const updated = await this.prisma.reservation.update({
+      where: { reservationId: id },
+      data: { status: ReservationStatus.COMPLETED },
+    });
 
     return {
-      items,
-      meta: {
-        total,
-        page,
-        limit,
-        lastPage: Math.ceil(total / limit),
-      },
+      success: true,
+      reservation: updated,
     };
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    throw new BadRequestException({
-      message: `Erreur récupération : ${error.message}`,
-      messageE: `Error fetching reservations: ${error.message}`,
-    });
   }
-}
+
+ async rateDoctor(reservationId: number, dto: RateDoctorDto) {
+    // 1) Charger la réservation
+    const res = await this.prisma.reservation.findUnique({
+      where: { reservationId },
+    });
+    if (!res) {
+      throw new NotFoundException({
+        message: `Réservation ${reservationId} introuvable.`,
+        messageE: `Reservation ${reservationId} not found.`,
+      });
+    }
+
+    // 2) Statut COMPLETED requis
+    if (res.status !== ReservationStatus.COMPLETED) {
+      throw new BadRequestException({
+        message: 'Vous ne pouvez noter qu’après une réservation complétée.',
+        messageE: 'You can only rate after a completed reservation.',
+      });
+    }
+
+    // 3) Vérifier medecinId et patientId
+    if (dto.medecinId !== res.medecinId || dto.patientId !== res.patientId) {
+      throw new ForbiddenException({
+        message: 'medecinId ou patientId invalide pour cette réservation.',
+        messageE: 'medecinId or patientId does not match this reservation.',
+      });
+    }
+
+    // 4) Créer le feedback
+    const feedback = await this.prisma.feedback.create({
+      data: {
+        medecinId: dto.medecinId,
+        patientId: dto.patientId,
+        note:      dto.note,
+        comment:   dto.comment,
+      },
+    });
+
+    return {
+      success:  true,
+      feedback,
+    };
+  }
 }

@@ -286,6 +286,7 @@ export class ReservationsService {
             },
           },
           transaction: true,
+          ordonance:true
         },
       });
       if (!res) {

@@ -186,6 +186,7 @@ model Reservation {
   medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
   patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+  ordonance Ordonance? @relation("ReservationOrdonnances")
 }
 
 model SoldeMedecin {
@@ -215,7 +216,9 @@ model Ordonance {
   medecinId       Int
   patientId       Int
   images          Json?
+  reservationId   Int          @unique
 
   medecin User @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
   patient User @relation("PatientOrdonnances", fields: [patientId], references: [userId])
-}
+  reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
+  }

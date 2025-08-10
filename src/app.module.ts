@@ -6,9 +6,10 @@ import { UsersModule } from './users/users.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { PlanningsModule } from './plannings/plannings.module';
 import { OrdonancesModule } from './ordonances/ordonances.module';
+import { AbonnementsModule } from './abonnements/abonnements.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule],
 })
 export class AppModule {}

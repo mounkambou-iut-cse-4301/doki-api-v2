@@ -4,8 +4,7 @@ import { PlanningsService } from './plannings.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
-        imports: [PrismaModule],   
-  
+  imports: [PrismaModule],   
   controllers: [PlanningsController],
   providers: [PlanningsService]
 })

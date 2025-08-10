@@ -77,6 +77,8 @@ model User {
   matricule     String?
   isBlock       Boolean  @default(false)
   isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   speciality    Speciality?    @relation(fields: [specialityId], references: [specialityId])
   feedbacksMed  Feedback[]     @relation("MedecinFeedbacks")
@@ -98,9 +100,11 @@ model Speciality {
   specialityId                Int     @id @default(autoincrement())
   name                        String
   consultationPrice           Decimal @db.Decimal(10, 2)
-  consultationDuration     Int      // durée en minutes pour une consultation
+  consultationDuration        Int // durée en minutes pour une consultation
   planMonthAmount             Decimal @db.Decimal(10, 2)
   numberOfTimePlanReservation Int
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
   users                       User[]
 }
 
@@ -110,6 +114,8 @@ model Feedback {
   patientId  Int
   note       Int
   comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   medecin User @relation("MedecinFeedbacks", fields: [medecinId], references: [userId])
   patient User @relation("PatientFeedbacks", fields: [patientId], references: [userId])
@@ -119,6 +125,8 @@ model Favorite {
   favoriteId Int @id @default(autoincrement())
   medecinId  Int
   patientId  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   medecin User @relation("MedecinFavorites", fields: [medecinId], references: [userId])
   patient User @relation("PatientFavorites", fields: [patientId], references: [userId])
@@ -131,6 +139,8 @@ model Video {
   description String?
   category    String?
   medecinId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   medecin User @relation(fields: [medecinId], references: [userId])
 }
@@ -148,19 +158,24 @@ model Planning {
   dimanche   Boolean @default(false)
   isClosed   Boolean @default(false)
   medecinId  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   medecin User @relation(fields: [medecinId], references: [userId])
 }
 
 model Abonnement {
-  abonnementId  Int              @id @default(autoincrement())
-  medecinId     Int
-  patientId     Int
+  abonnementId                Int @id @default(autoincrement())
+  medecinId                   Int
+  patientId                   Int
+  numberOfTimePlanReservation Int
   status        AbonnementStatus @default(PENDING)
   debutDate     DateTime
   endDate       DateTime
   amount        Decimal?         @db.Decimal(10, 2)
   transactionId Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   medecin     User         @relation("MedecinAbonnements", fields: [medecinId], references: [userId])
   patient     User         @relation("PatientAbonnements", fields: [patientId], references: [userId])
@@ -182,17 +197,21 @@ model Reservation {
   amount        Decimal?          @db.Decimal(10, 2)
   transactionId Int?
   status        ReservationStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
   patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
-  ordonance Ordonance? @relation("ReservationOrdonnances")
+  ordonance   Ordonance?   @relation("ReservationOrdonnances")
 }
 
 model SoldeMedecin {
   soldeMedecinId Int     @id @default(autoincrement())
   solde          Decimal @default(0) @db.Decimal(10, 2)
   medecinId      Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   medecin User @relation(fields: [medecinId], references: [userId])
 }
@@ -203,6 +222,8 @@ model Transaction {
   status        TransactionStatus @default(PENDING)
   amount        Decimal           @db.Decimal(10, 2)
   type          TransactionType
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   abonnements  Abonnement[]
   reservations Reservation[]
@@ -216,9 +237,11 @@ model Ordonance {
   medecinId       Int
   patientId       Int
   images          Json?
-  reservationId   Int          @unique
+  reservationId   Int     @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  medecin User @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
-  patient User @relation("PatientOrdonnances", fields: [patientId], references: [userId])
+  medecin     User        @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
+  patient     User        @relation("PatientOrdonnances", fields: [patientId], references: [userId])
   reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
-  }
+}

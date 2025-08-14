@@ -1,9 +1,13 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AbonnementsService } from './abonnements.service';
 import { CreateAbonnementDto } from './dto/create-abonnement.dto';
 import { QueryAbonnementDto } from './dto/query-abonnement.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @ApiTags('abonnements')
 @Controller('abonnements')
 export class AbonnementsController {

@@ -8,13 +8,19 @@ import {
   Query,
   ParseIntPipe,
   Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDateDto } from './dto/update-reservation-date.dto';
 import { QueryReservationDto } from './dto/query-reservation.dto';
 import { RateDoctorDto } from './dto/rate-doctor.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @ApiTags('reservations')
 @Controller('reservations')
 export class ReservationsController {

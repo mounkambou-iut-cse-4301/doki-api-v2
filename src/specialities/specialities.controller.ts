@@ -7,13 +7,18 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { SpecialitiesService } from './specialities.service';
-import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { CreateSpecialityDto } from './dto/create-specialityDto';
 import { UpdateSpecialityDto } from './dto/update-specialityDto';
 import { QuerySpecialityDto } from './dto/query-specialityDto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @Controller('specialities')
 export class SpecialitiesController {
   constructor(private readonly specialityService: SpecialitiesService) {}

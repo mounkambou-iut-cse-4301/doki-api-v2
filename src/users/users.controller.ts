@@ -7,15 +7,19 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { CreateMedecinDto } from './dto/create-medecin.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { UpdateMedecinDto } from './dto/update-medecin.dto';
 import { QueryUserDto } from './dto/query-user.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
+ @ApiBearerAuth('JWT-auth')
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
@@ -34,6 +38,7 @@ export class UsersController {
   signupMedecin(@Body() dto: CreateMedecinDto) {
     return this.svc.signupMedecin(dto);
   }
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
   @Patch('patient/:id')
   @ApiOperation({ summary: 'Mettre à jour un patient' })
@@ -45,6 +50,7 @@ export class UsersController {
   ) {
     return this.svc.updatePatient(id, dto);
   }
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
   @Patch('medecin/:id')
   @ApiOperation({ summary: 'Mettre à jour un médecin' })
@@ -56,6 +62,7 @@ export class UsersController {
   ) {
     return this.svc.updateMedecin(id, dto);
   }
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
   @Get()
   @ApiOperation({ summary: 'Lister les utilisateurs (filtres & pagination)' })
@@ -63,6 +70,7 @@ export class UsersController {
   findAll(@Query() query: QueryUserDto) {
     return this.svc.findAll(query);
   }
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtenir un utilisateur par ID' })

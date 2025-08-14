@@ -9,9 +9,10 @@ import { OrdonancesModule } from './ordonances/ordonances.module';
 import { AbonnementsModule } from './abonnements/abonnements.module';
 import { VideosModule } from './videos/videos.module';
 import { AdminsModule } from './admins/admins.module';
+import { AuthModule } from './auth/auth.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule],
 })
 export class AppModule {}

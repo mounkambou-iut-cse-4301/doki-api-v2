@@ -9,7 +9,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { CreateMedecinDto } from './dto/create-medecin.dto';
@@ -19,7 +25,6 @@ import { QueryUserDto } from './dto/query-user.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
- @ApiBearerAuth('JWT-auth')
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
@@ -38,8 +43,8 @@ export class UsersController {
   signupMedecin(@Body() dto: CreateMedecinDto) {
     return this.svc.signupMedecin(dto);
   }
+  @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
-
   @Patch('patient/:id')
   @ApiOperation({ summary: 'Mettre à jour un patient' })
   @ApiParam({ name: 'id', type: 'integer' })
@@ -50,8 +55,9 @@ export class UsersController {
   ) {
     return this.svc.updatePatient(id, dto);
   }
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
   @Patch('medecin/:id')
   @ApiOperation({ summary: 'Mettre à jour un médecin' })
   @ApiParam({ name: 'id', type: 'integer' })
@@ -62,16 +68,18 @@ export class UsersController {
   ) {
     return this.svc.updateMedecin(id, dto);
   }
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
   @Get()
   @ApiOperation({ summary: 'Lister les utilisateurs (filtres & pagination)' })
   @ApiResponse({ status: 200, description: 'Liste retournée.' })
   findAll(@Query() query: QueryUserDto) {
     return this.svc.findAll(query);
   }
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
   @Get(':id')
   @ApiOperation({ summary: 'Obtenir un utilisateur par ID' })
   @ApiParam({ name: 'id', type: 'integer' })

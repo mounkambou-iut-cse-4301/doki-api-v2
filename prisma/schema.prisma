@@ -75,6 +75,7 @@ model User {
   profile       String?
   weight        Decimal? @db.Decimal(5, 2)
   matricule     String?
+  expotoken String? @db.VarChar(255)
   isBlock       Boolean  @default(false)
   isVerified    Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -96,6 +97,26 @@ model User {
   soldes        SoldeMedecin[]
 
   PasswordReset PasswordReset[]
+
+  Notification Notification[]
+
+  Suivi Suivi[]
+}
+
+model Notification {
+notificationId Int @id @default(autoincrement())
+title String
+message String
+isRead Boolean @default(false)
+userId Int
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+
+
+user User @relation(fields: [userId], references: [userId])
+
+
+@@index([userId, isRead, createdAt])
 }
 
 model Speciality {
@@ -246,8 +267,32 @@ model Ordonance {
   medecin     User        @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
   patient     User        @relation("PatientOrdonnances", fields: [patientId], references: [userId])
   reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
+
+  Suivi Suivi[]
 }
 
+model Suivi {
+suiviId Int @id @default(autoincrement())
+patientId Int
+nomMedicament String
+dosage String?
+frequence String?
+heure String // "HH:mm"
+date String // "YYYY-MM-DD"
+stock Int?
+isTaken Boolean @default(false)
+ordonanceId Int?
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+
+
+patient User @relation(fields: [patientId], references: [userId])
+ordonance Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
+
+
+@@index([patientId, date, isTaken])
+@@unique([patientId, date, heure, nomMedicament])
+}
 
 model PasswordReset {
   id        Int      @id @default(autoincrement())

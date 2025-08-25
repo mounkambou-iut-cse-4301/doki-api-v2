@@ -44,7 +44,7 @@ export class CreatePatientDto {
 
   @ApiPropertyOptional({ description: "Adresse de l'hôpital" })
   @IsOptional() @IsString()
-  addressHospital?: string;
+  addressHosp?: string;
 
   @ApiPropertyOptional({ description: "Nom de l'hôpital" })
   @IsOptional() @IsString()

@@ -11,6 +11,7 @@ import { CreateMedecinDto } from './dto/create-medecin.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { UpdateMedecinDto } from './dto/update-medecin.dto';
 import { QueryUserDto } from './dto/query-user.dto';
+import * as bcrypt from 'bcryptjs';
 
 const userSafeSelect = {
   userId: true,
@@ -22,7 +23,7 @@ const userSafeSelect = {
   acceptPrivacy: true,
   city: true,
   address: true,
-  addressHospital: true,
+  addressHosp: true,
   hospitalName: true,
   longitude: true,
   latitude: true,
@@ -63,9 +64,13 @@ export class UsersService {
         });
       }
 
+      // Hash the password before saving
+      const hashedPassword = await bcrypt.hash(dto.password, 10);
+
       return this.prisma.user.create({
         data: {
           ...dto,
+          password: hashedPassword,
           userType: UserType.PATIENT,
         },
       });
@@ -102,9 +107,13 @@ export class UsersService {
         });
       }
 
+      // Hash the password before saving
+      const hashedPassword = await bcrypt.hash(dto.password, 10);
+
       return this.prisma.user.create({
         data: {
           ...dto,
+          password: hashedPassword,
           userType: UserType.MEDECIN,
         },
       });

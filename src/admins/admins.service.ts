@@ -239,10 +239,10 @@ export class AdminsService {
         include: {
           // <-- relations AU PLURIEL
           reservations: {
-            select: { reservationId: true, medecinId: true, patientId: true, date: true, hour: true },
+            select: { reservationId: true, medecinId: true, patientId: true, date: true, hour: true,patient:{select:{firstName:true,lastName:true}},medecin:{select:{firstName:true,lastName:true}} },
           },
           abonnements: {
-            select: { abonnementId: true, medecinId: true, patientId: true, debutDate: true, endDate: true },
+            select: { abonnementId: true, medecinId: true, patientId: true, debutDate: true, endDate: true,patient:{select:{firstName:true,lastName:true}},medecin:{select:{firstName:true,lastName:true}} },
           },
         },
       }),

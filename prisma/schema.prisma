@@ -101,6 +101,55 @@ model User {
   Notification Notification[]
 
   Suivi Suivi[]
+
+    // Messageries — conversations où l'utilisateur est médecin ou patient
+  conversationsMed Conversation[] @relation("MedecinConversations")
+  conversationsPat Conversation[] @relation("PatientConversations")
+
+  // Messageries — messages envoyés / reçus
+  messagesSent     Message[]      @relation("MessageSender")
+  messagesReceived Message[]      @relation("MessageReceiver")
+}
+
+
+
+
+model Conversation {
+conversationId Int @id @default(autoincrement())
+medecinId Int
+patientId Int
+lastMessageAt DateTime @default(now())
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+
+
+medecin User @relation("MedecinConversations", fields: [medecinId], references: [userId])
+patient User @relation("PatientConversations", fields: [patientId], references: [userId])
+messages Message[]
+
+
+@@unique([medecinId, patientId])
+@@index([medecinId])
+@@index([patientId])
+}
+
+
+model Message {
+  messageId      Int          @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  receiverId     Int
+  content        String?
+  meta           Json?
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [conversationId])
+  sender       User         @relation("MessageSender", fields: [senderId], references: [userId])
+  receiver     User         @relation("MessageReceiver", fields: [receiverId], references: [userId])
+
+  @@index([conversationId, createdAt])
+  @@index([receiverId, isRead])
 }
 
 model Notification {
@@ -306,3 +355,4 @@ model PasswordReset {
   user      User     @relation(fields: [userId], references: [userId])
   @@index([email])
 }
+

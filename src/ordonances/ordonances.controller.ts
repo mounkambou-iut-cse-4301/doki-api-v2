@@ -5,6 +5,7 @@ import { CreateOrdonanceDto } from './dto/create-ordonance.dto';
 import { UpdateOrdonanceDto } from './dto/update-ordonance.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { OrdonanceFilterDto } from './dto/ordonance-filter.dto';
 
  @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
@@ -27,6 +28,13 @@ export class OrdonancesController {
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOrdonanceDto) {
     return this.svc.update(id, dto);
   }
+
+      @Get()
+    @ApiOperation({ summary: 'Obtenir toutes les ordonnances avec filtres et pagination' })
+    @ApiResponse({ status: 200, description: 'Liste des ordonnances retournée.' })
+    async findAll(@Query() filters: OrdonanceFilterDto) {
+        return this.svc.findAll(filters);
+    }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtenir une ordonnance par ID' })

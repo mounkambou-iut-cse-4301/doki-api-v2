@@ -306,55 +306,72 @@ export class ReservationsService {
   }
 
   /** 4. Liste paginée + filtres */
-  async findAll(query: QueryReservationDto) {
-    try {
-      // pagination
-      const page: number = query.page != null ? Number(query.page) : 1;
-      const limit: number = query.limit != null ? Number(query.limit) : 10;
-      if (page < 1 || limit < 1) {
-        throw new BadRequestException({
-          message: 'Page et limit doivent être >= 1',
-          messageE: 'Page and limit must be >= 1',
-        });
-      }
-      const skip = (page - 1) * limit;
-
-      // filtres
-      const where: any = {};
-      if (query.medecinId) where.medecinId = Number(query.medecinId);
-      if (query.patientId) where.patientId = Number(query.patientId);
-      if (query.date) where.date = query.date; // chaîne YYYY-MM-DD
-      if (query.type) where.type = query.type;
-      if (query.status) where.status = query.status;
-
-      // exécution atomique find + count
-      const [items, total] = await this.prisma.$transaction([
-        this.prisma.reservation.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: [{ date: 'asc' }, { hour: 'asc' }],
-        }),
-        this.prisma.reservation.count({ where }),
-      ]);
-
-      return {
-        items,
-        meta: {
-          total,
-          page,
-          limit,
-          lastPage: Math.ceil(total / limit),
-        },
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
+async findAll(query: QueryReservationDto) {
+  try {
+    // Pagination
+    const page: number = query.page != null ? Number(query.page) : 1;
+    const limit: number = query.limit != null ? Number(query.limit) : 10;
+    if (page < 1 || limit < 1) {
       throw new BadRequestException({
-        message: `Erreur récupération : ${error.message}`,
-        messageE: `Error fetching reservations: ${error.message}`,
+        message: 'Page et limit doivent être >= 1',
+        messageE: 'Page and limit must be >= 1',
       });
     }
+    const skip = (page - 1) * limit;
+
+    // Filtres
+    const where: any = {};
+    if (query.medecinId) where.medecinId = Number(query.medecinId);
+    if (query.patientId) where.patientId = Number(query.patientId);
+    if (query.date) where.date = query.date; // chaîne YYYY-MM-DD
+    if (query.type) where.type = query.type;
+    if (query.status) where.status = query.status;
+
+    // Inclure seulement les noms des médecins et des patients
+    const include = {
+      medecin: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      patient: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+    };
+
+    // Exécution atomique find + count
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.reservation.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ date: 'asc' }, { hour: 'asc' }],
+        include,
+      }),
+      this.prisma.reservation.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+    throw new BadRequestException({
+      message: `Erreur récupération : ${error.message}`,
+      messageE: `Error fetching reservations: ${error.message}`,
+    });
   }
+}
 
   async completeReservation(id: number) {
     // 1) Charger la réservation + médecin + spécialité

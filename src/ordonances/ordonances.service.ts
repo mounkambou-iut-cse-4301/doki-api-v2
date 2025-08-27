@@ -4,6 +4,7 @@ import { CreateOrdonanceDto } from './dto/create-ordonance.dto';
 import { uploadImageToCloudinary } from 'src/utils/cloudinary';
 import { UpdateOrdonanceDto } from './dto/update-ordonance.dto';
 import { Ordonance, Prisma, Reservation, User } from 'generated/prisma';
+import { OrdonanceFilterDto } from './dto/ordonance-filter.dto';
 
 @Injectable()
 export class OrdonancesService {
@@ -32,7 +33,27 @@ export class OrdonancesService {
       },
     });
   }
+async findAll(filters: OrdonanceFilterDto): Promise<Ordonance[]> {
+        const { medecinId, patientId, reservationId, createdAt, dureeTraitement, comment, page = 1, limit = 10 } = filters;
+        const skip = (page - 1) * limit;
 
+        const where: Prisma.OrdonanceWhereInput = {
+            ...(medecinId && { medecinId }),
+            ...(patientId && { patientId }),
+            ...(reservationId && { reservationId }),
+            ...(createdAt && { createdAt: { gte: new Date(createdAt) } }),
+            ...(dureeTraitement && { dureeTraitement: { contains: dureeTraitement } }),
+            ...(comment && { comment: { contains: comment } }),
+        };
+
+        const ordonnances = await this.prisma.ordonance.findMany({
+            where,
+            skip,
+            take: limit,
+        });
+
+        return ordonnances;
+    }
   async update(id: number, dto: UpdateOrdonanceDto): Promise<Ordonance> {
     const ord = await this.prisma.ordonance.findUnique({ where: { ordonanceId: id } });
     if (!ord) throw new NotFoundException('Ordonnance introuvable.');

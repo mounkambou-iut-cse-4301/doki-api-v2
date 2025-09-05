@@ -20,7 +20,13 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.useGlobalPipes(new ValidationPipe());
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    transform: true, // active la transformation DTO
+    transformOptions: { enableImplicitConversion: true }, // conversion string->number si @Type absent
+  }),
+);
 
   // 1. Construction de la config Swagger avec bearer
   const config = new DocumentBuilder()

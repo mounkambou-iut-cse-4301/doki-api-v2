@@ -41,4 +41,6 @@ export class OrdonanceFilterDto {
     @IsOptional()
     @IsInt()
     limit?: number;
+
+    
 }

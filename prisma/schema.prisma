@@ -356,3 +356,47 @@ model PasswordReset {
   @@index([email])
 }
 
+model Category {
+  categoryId  Int      @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  formations  FormationContinue[]
+
+  @@index([name])
+  @@map("categories")
+}
+
+model FormationContinue {
+  formationId Int      @id @default(autoincrement())
+  name        String
+  categoryId  Int
+  competence  String
+  dureeHeures Int
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [categoryId])
+  lessons  Lesson[]
+
+  @@index([categoryId, name])
+  @@map("formations_continue")
+}
+
+model Lesson {
+  lessonId    Int      @id @default(autoincrement())
+  title       String
+  description String?
+  fileUrl     String?
+  orderIndex  Int?
+  formationId Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  formation FormationContinue @relation(fields: [formationId], references: [formationId])
+
+  @@index([formationId, orderIndex])
+  @@map("lessons")
+}

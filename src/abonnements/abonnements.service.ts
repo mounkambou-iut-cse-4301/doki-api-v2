@@ -23,6 +23,8 @@ function dateAtLocalMidnight(tz: string, base = new Date()): Date {
   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
 }
 
+
+
 /** Ajoute N mois calendrier sans casser la fin de mois */
 function addMonthsUTC(d: Date, n: number): Date {
   const y = d.getUTCFullYear();
@@ -59,6 +61,7 @@ export class AbonnementsService {
    * - Après 10s, met ABO=CONFIRMED et TX=PAID (+paymentId)
    * - Renvoie toujours message / messageE
    */
+  
   async create(dto: CreateAbonnementDto): Promise<any> {
     if (dto.months < 1 || dto.amount <= 0) {
       throw new BadRequestException({
@@ -202,15 +205,57 @@ export class AbonnementsService {
       where.debutDate = { gte, lt };
     }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.abonnement.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { debutDate: 'desc' },
-      }),
-      this.prisma.abonnement.count({ where }),
-    ]);
+    // const [items, total] = await this.prisma.$transaction([
+    //   this.prisma.abonnement.findMany({
+    //     where,
+    //     skip,
+    //     take: limit,
+    //     orderBy: { debutDate: 'desc' },
+    //   }),
+    //   this.prisma.abonnement.count({ where }),
+    // ]);
+const [items, total] = await this.prisma.$transaction([
+  this.prisma.abonnement.findMany({
+    where,
+    skip,
+    take: limit,
+    orderBy: { debutDate: 'desc' },
+    include: {
+      medecin: {
+        select: {
+          userId: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          profile: true,
+          speciality: {
+            select: {
+              specialityId: true,
+              name: true,
+              consultationPrice: true,
+              consultationDuration: true,
+              planMonthAmount: true,
+              numberOfTimePlanReservation: true,
+            },
+          },
+        },
+      },
+      patient: {
+        select: {
+          userId: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          profile: true,
+        },
+      },
+      transaction: true,
+    },
+  }),
+  this.prisma.abonnement.count({ where }),
+]);
 
     return {
       message: 'Abonnements récupérés.',

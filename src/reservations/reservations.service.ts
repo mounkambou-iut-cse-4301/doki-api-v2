@@ -1,3 +1,4 @@
+import { Feedback, Speciality } from './../../generated/prisma/index.d';
 import {
   BadRequestException,
   ForbiddenException,
@@ -17,6 +18,7 @@ import { QueryReservationDto } from './dto/query-reservation.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { randomUUID } from 'crypto';
 import { RateDoctorDto } from './dto/rate-doctor.dto';
+import { profile } from 'console';
 
 @Injectable()
 export class ReservationsService {
@@ -264,48 +266,200 @@ export class ReservationsService {
   }
 
   /** 3. Récupérer par ID + relations */
-  async findOne(id: number) {
-    try {
-      const res = await this.prisma.reservation.findUnique({
-        where: { reservationId: id },
-        include: {
-          medecin: {
-            select: {
-              userId: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+  // async findOne(id: number) {
+  //   try {
+  //     const res = await this.prisma.reservation.findUnique({
+  //       where: { reservationId: id },
+  //       include: {
+  //         medecin: {
+  //           select: {
+  //             userId: true,
+  //             firstName: true,
+  //             lastName: true,
+  //             email: true,
+  //                                 profile: true,
+  //           },
+  //         },
+  //         patient: {
+  //           select: {
+  //             userId: true,
+  //             firstName: true,
+  //             lastName: true,
+  //             email: true,
+  //                                 profile: true,
+  //           },
+  //         },
+  //         transaction: true,
+  //         ordonance:true
+  //       },
+  //     });
+  //     if (!res) {
+  //       throw new NotFoundException({
+  //         message: `Réservation d'ID ${id} introuvable.`,
+  //         messageE: `Reservation with ID ${id} not found.`,
+  //       });
+  //     }
+  //     return res;
+  //   } catch (error) {
+  //     if (error instanceof NotFoundException) throw error;
+  //     throw new BadRequestException({
+  //       message: `Erreur récupération : ${error.message}`,
+  //       messageE: `Error fetching reservation: ${error.message}`,
+  //     });
+  //   }
+  // }
+/** 3. Récupérer par ID + relations + rating + derniers avis */
+async findOne(id: number) {
+  try {
+    const res = await this.prisma.reservation.findUnique({
+      where: { reservationId: id },
+      include: {
+        medecin: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profile: true, // photo de profil
+            speciality: {  // spécialité du médecin
+              select: {
+                specialityId: true,
+                name: true,
+                consultationPrice: true,
+                consultationDuration: true,
+                planMonthAmount: true,
+                numberOfTimePlanReservation: true,
+              },
             },
           },
-          patient: {
-            select: {
-              userId: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          transaction: true,
-          ordonance:true
         },
-      });
-      if (!res) {
-        throw new NotFoundException({
-          message: `Réservation d'ID ${id} introuvable.`,
-          messageE: `Reservation with ID ${id} not found.`,
-        });
-      }
-      return res;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new BadRequestException({
-        message: `Erreur récupération : ${error.message}`,
-        messageE: `Error fetching reservation: ${error.message}`,
+        patient: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profile: true, // photo de profil patient (utile côté UI)
+          },
+        },
+        transaction: true,
+        ordonance: true,
+      },
+    });
+
+    if (!res) {
+      throw new NotFoundException({
+        message: `Réservation d'ID ${id} introuvable.`,
+        messageE: `Reservation with ID ${id} not found.`,
       });
     }
+
+    // Stats d’avis pour le médecin de cette réservation
+    const [ratingStats, lastFeedbacks] = await Promise.all([
+      this.prisma.feedback.aggregate({
+        where: { medecinId: res.medecinId },
+        _avg: { note: true },
+        _count: { _all: true },
+      }),
+      this.prisma.feedback.findMany({
+        where: { medecinId: res.medecinId },
+        orderBy: { createdAt: 'desc' },
+        take: 3, // derniers avis (ajuste si besoin)
+        include: {
+          patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+        },
+      }),
+    ]);
+
+    return {
+      ...res,
+      medecinRating: {
+        average: ratingStats._avg.note ?? 0,
+        count: ratingStats._count._all,
+      },
+      lastFeedbacks, // [{note, comment, patient{...}, createdAt}, ...]
+    };
+  } catch (error) {
+    if (error instanceof NotFoundException) throw error;
+    throw new BadRequestException({
+      message: `Erreur récupération : ${error.message}`,
+      messageE: `Error fetching reservation: ${error.message}`,
+    });
   }
+}
 
   /** 4. Liste paginée + filtres */
+// async findAll(query: QueryReservationDto) {
+//   try {
+//     // Pagination
+//     const page: number = query.page != null ? Number(query.page) : 1;
+//     const limit: number = query.limit != null ? Number(query.limit) : 10;
+//     if (page < 1 || limit < 1) {
+//       throw new BadRequestException({
+//         message: 'Page et limit doivent être >= 1',
+//         messageE: 'Page and limit must be >= 1',
+//       });
+//     }
+//     const skip = (page - 1) * limit;
+
+//     // Filtres
+//     const where: any = {};
+//     if (query.medecinId) where.medecinId = Number(query.medecinId);
+//     if (query.patientId) where.patientId = Number(query.patientId);
+//     if (query.date) where.date = query.date; // chaîne YYYY-MM-DD
+//     if (query.type) where.type = query.type;
+//     if (query.status) where.status = query.status;
+
+//     // Inclure seulement les noms des médecins et des patients
+//     const include = {
+//       medecin: {
+//         select: {
+//           firstName: true,
+//           lastName: true,
+
+
+//         },
+//       },
+//       patient: {
+//         select: {
+//           firstName: true,
+//           lastName: true,
+
+
+//      },
+//       },
+//     };
+
+//     // Exécution atomique find + count
+//     const [items, total] = await this.prisma.$transaction([
+//       this.prisma.reservation.findMany({
+//         where,
+//         skip,
+//         take: limit,
+//         orderBy: [{ date: 'asc' }, { hour: 'asc' }],
+//         include,
+//       }),
+//       this.prisma.reservation.count({ where }),
+//     ]);
+
+//     return {
+//       items,
+//       meta: {
+//         total,
+//         page,
+//         limit,
+//         lastPage: Math.ceil(total / limit),
+//       },
+//     };
+//   } catch (error) {
+//     if (error instanceof BadRequestException) throw error;
+//     throw new BadRequestException({
+//       message: `Erreur récupération : ${error.message}`,
+//       messageE: `Error fetching reservations: ${error.message}`,
+//     });
+//   }
+// }
+/** 4. Liste paginée + filtres + profil + spécialité + rating résumé */
 async findAll(query: QueryReservationDto) {
   try {
     // Pagination
@@ -323,25 +477,39 @@ async findAll(query: QueryReservationDto) {
     const where: any = {};
     if (query.medecinId) where.medecinId = Number(query.medecinId);
     if (query.patientId) where.patientId = Number(query.patientId);
-    if (query.date) where.date = query.date; // chaîne YYYY-MM-DD
+    if (query.date) where.date = query.date;
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
 
-    // Inclure seulement les noms des médecins et des patients
+    // On inclut profil + spécialité pour le médecin, et profil pour le patient
     const include = {
       medecin: {
         select: {
+          userId: true,
           firstName: true,
           lastName: true,
+          profile: true,
+          speciality: {
+            select: {
+              specialityId: true,
+              name: true,
+              consultationPrice: true,
+              consultationDuration: true,
+              planMonthAmount: true,
+              numberOfTimePlanReservation: true,
+            },
+          },
         },
       },
       patient: {
         select: {
+          userId: true,
           firstName: true,
           lastName: true,
+          profile: true,
         },
       },
-    };
+    } as const;
 
     // Exécution atomique find + count
     const [items, total] = await this.prisma.$transaction([
@@ -355,8 +523,31 @@ async findAll(query: QueryReservationDto) {
       this.prisma.reservation.count({ where }),
     ]);
 
+    // —— Récupérer les ratings des médecins affichés (en 1 batch) ——
+    const medecinIds = Array.from(new Set(items.map(i => i.medecinId)));
+    // groupBy retourne une ligne par medecinId avec _avg.note et _count
+    const ratingRows = await this.prisma.feedback.groupBy({
+      by: ['medecinId'],
+      where: { medecinId: { in: medecinIds } },
+      _avg: { note: true },
+      _count: { _all: true },
+    });
+    const ratingMap = new Map<number, { average: number; count: number }>();
+    for (const r of ratingRows) {
+      ratingMap.set(r.medecinId, {
+        average: r._avg.note ?? 0,
+        count: r._count._all,
+      });
+    }
+
+    // Attacher les ratings à chaque item
+    const itemsWithRatings = items.map(it => ({
+      ...it,
+      medecinRating: ratingMap.get(it.medecinId) ?? { average: 0, count: 0 },
+    }));
+
     return {
-      items,
+      items: itemsWithRatings,
       meta: {
         total,
         page,

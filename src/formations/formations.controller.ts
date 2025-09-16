@@ -1,4 +1,14 @@
-import { Controller, Get, Param, ParseBoolPipe, ParseIntPipe, Post, Body, Patch, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseBoolPipe,
+  ParseIntPipe,
+  Post,
+  Body,
+  Patch,
+  Query,
+} from '@nestjs/common';
 import { FormationsService } from './formations.service';
 import { CreateFormationDto } from './dto/create-formation.dto';
 import { UpdateFormationDto } from './dto/update-formation.dto';
@@ -9,7 +19,7 @@ export class FormationsController {
   constructor(private readonly service: FormationsService) {}
 
   // GET /formations-continues?search=...&categoryId=1&minDuree=2&maxDuree=10&includeLessons=true&page=1&limit=10
-   @Get()
+  @Get()
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'categoryId', required: false, type: Number })
   @ApiQuery({ name: 'minDuree', required: false, type: Number })

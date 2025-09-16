@@ -18,10 +18,73 @@ type FormationListFilters = {
   limit: number;
 };
 
+// --------------------
+// Types de réponse API
+// --------------------
+type LessonResponse = {
+  lessonId: number;
+  title: string;
+  description?: string | null;
+  fileUrl?: string | null;
+  orderIndex?: number | null;
+  formationId: number;
+  createdAt: Date;
+  updatedAt: Date;
+  /** ⇩⇩ demandé : id + nom de la catégorie de la leçon */
+  categoryId?: number | null;
+  categoryName?: string | null;
+};
+
+type FormationResponse = {
+  formationId: number;
+  name: string;
+  categoryId?: number | null;
+  categoryName?: string | null;
+  competence: string;
+  dureeHeures: number;
+  comment?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lessons?: LessonResponse[];
+};
+
 @Injectable()
 export class FormationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // --------------------
+  // Helpers: mapping
+  // --------------------
+  private mapLesson = (l: any): LessonResponse => ({
+    lessonId: l.lessonId,
+    title: l.title,
+    description: l.description ?? null,
+    fileUrl: l.fileUrl ?? null,
+    orderIndex: l.orderIndex ?? null,
+    formationId: l.formationId,
+    createdAt: l.createdAt,
+    updatedAt: l.updatedAt,
+    // ⇩⇩ on expose categoryId et categoryName sur la leçon
+    categoryId: l.category?.categoryId ?? l.categoryId ?? null,
+    categoryName: l.category?.name ?? null,
+  });
+
+  private mapFormation = (f: any, withLessons = true): FormationResponse => ({
+    formationId: f.formationId,
+    name: f.name,
+    categoryId: f.category?.categoryId ?? f.categoryId ?? null,
+    categoryName: f.category?.name ?? null,
+    competence: f.competence,
+    dureeHeures: f.dureeHeures,
+    comment: f.comment ?? null,
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+    lessons: withLessons && Array.isArray(f.lessons) ? f.lessons.map(this.mapLesson) : undefined,
+  });
+
+  // --------------------
+  // FIND ALL
+  // --------------------
   async findAll(query: FormationListFilters) {
     const {
       page,
@@ -44,6 +107,7 @@ export class FormationsService {
                 { name: { contains: search } },
                 { competence: { contains: search } },
                 { comment: { contains: search } },
+                { category: { name: { contains: search } } }, // recherche par nom de catégorie
               ],
             }
           : {},
@@ -54,11 +118,19 @@ export class FormationsService {
       ],
     };
 
-    const include: Prisma.FormationContinueInclude = includeLessons
-      ? { category: true, lessons: { orderBy: { orderIndex: 'asc' } } }
-      : { category: true };
+    const includeBaseCategory = { select: { categoryId: true, name: true } } as const;
 
-    const [total, data] = await this.prisma.$transaction([
+    const include: Prisma.FormationContinueInclude = includeLessons
+      ? {
+          category: includeBaseCategory,
+          lessons: {
+            orderBy: { orderIndex: 'asc' },
+            include: { category: includeBaseCategory },
+          },
+        }
+      : { category: includeBaseCategory };
+
+    const [total, rows] = await this.prisma.$transaction([
       this.prisma.formationContinue.count({ where }),
       this.prisma.formationContinue.findMany({
         where,
@@ -68,6 +140,8 @@ export class FormationsService {
         take: limit,
       }),
     ]);
+
+    const data = rows.map((r) => this.mapFormation(r, !!includeLessons));
 
     return {
       data,
@@ -80,69 +154,97 @@ export class FormationsService {
     };
   }
 
+  // --------------------
+  // FIND ONE
+  // --------------------
   async findOne(id: number, includeLessons = true) {
+    const includeBaseCategory = { select: { categoryId: true, name: true } } as const;
+
     const include: Prisma.FormationContinueInclude = includeLessons
-      ? { category: true, lessons: { orderBy: { orderIndex: 'asc' } } }
-      : { category: true };
+      ? {
+          category: includeBaseCategory,
+          lessons: {
+            orderBy: { orderIndex: 'asc' },
+            include: { category: includeBaseCategory },
+          },
+        }
+      : { category: includeBaseCategory };
 
     const item = await this.prisma.formationContinue.findUnique({
       where: { formationId: id },
       include,
     });
     if (!item) throw new NotFoundException('Formation not found');
-    return item;
+
+    return this.mapFormation(item, includeLessons);
   }
 
+  // --------------------
+  // CREATE
+  // --------------------
   async create(dto: CreateFormationDto) {
     await this.ensureCategory(dto.categoryId);
 
-    // 1) Uploader les éventuels fileUrl base64 AVANT la création
-    let lessonsCreate:
-      | Prisma.LessonCreateWithoutFormationInput[]
-      | undefined;
+    let lessonsCreate: Prisma.LessonCreateWithoutFormationInput[] | undefined;
 
     if (dto.lessons?.length) {
-      // Upload en parallèle
+      // Vérifier l’existence des catégories de leçon (si fournies) en parallèle
+      const uniqueLessonCatIds = Array.from(
+        new Set(
+          dto.lessons
+            .map((l) => l.categoryId)
+            .filter((v): v is number => typeof v === 'number'),
+        ),
+      );
+      if (uniqueLessonCatIds.length) {
+        await Promise.all(uniqueLessonCatIds.map((cid) => this.ensureCategory(cid)));
+      }
+
+      // Upload en parallèle + préparation payload
       const prepared = await Promise.all(
         dto.lessons.map(async (l) => {
           let uploadedUrl: string | undefined = l.fileUrl;
           if (typeof l.fileUrl === 'string') {
-            try {
-              uploadedUrl = await uploadImageToCloudinary(l.fileUrl, 'formations/tmp');
-            } catch (e) {
-              // si format non supporté, on peut soit lever, soit ignorer le fileUrl
-              // ici on re-lève une erreur claire
-              throw e;
-            }
+            uploadedUrl = await uploadImageToCloudinary(l.fileUrl, 'formations/tmp');
           }
           return {
             title: l.title,
             description: l.description,
             fileUrl: uploadedUrl,
             orderIndex: l.orderIndex,
+            ...(typeof l.categoryId === 'number'
+              ? { category: { connect: { categoryId: l.categoryId } } }
+              : {}),
           } satisfies Prisma.LessonCreateWithoutFormationInput;
-        })
+        }),
       );
 
       lessonsCreate = prepared;
     }
 
-    // 2) Création formation + leçons
-    return this.prisma.formationContinue.create({
+    const includeBaseCategory = { select: { categoryId: true, name: true } } as const;
+
+    const created = await this.prisma.formationContinue.create({
       data: {
         name: dto.name,
         categoryId: dto.categoryId,
         competence: dto.competence,
         dureeHeures: dto.dureeHeures,
         comment: dto.comment,
-        lessons: lessonsCreate?.length
-          ? { create: lessonsCreate }
-          : undefined,
+        lessons: lessonsCreate?.length ? { create: lessonsCreate } : undefined,
       },
-      include: { category: true, lessons: true },
+      include: {
+        category: includeBaseCategory,
+        lessons: { orderBy: { orderIndex: 'asc' }, include: { category: includeBaseCategory } },
+      },
     });
+
+    return this.mapFormation(created, true);
   }
 
+  // --------------------
+  // UPDATE
+  // --------------------
   async update(id: number, dto: UpdateFormationDto) {
     await this.ensureFormation(id);
     if (dto.categoryId) await this.ensureCategory(dto.categoryId);
@@ -159,20 +261,25 @@ export class FormationsService {
       const toUpdate = dto.lessons.filter((l) => !!l.lessonId);
       const toCreate = dto.lessons.filter((l) => !l.lessonId);
 
+      // Vérifier d’avance les catégories mentionnées
+      const catIdsToCheck = Array.from(
+        new Set(
+          dto.lessons
+            .map((l) => l.categoryId)
+            .filter((v): v is number => typeof v === 'number'),
+        ),
+      );
+      if (catIdsToCheck.length) {
+        await Promise.all(catIdsToCheck.map((cid) => this.ensureCategory(cid)));
+      }
+
       // a) UPDATE existants (upload si base64 fourni)
       if (toUpdate.length) {
         const updatedPayloads = await Promise.all(
           toUpdate.map(async (l) => {
             let uploadedUrl = l.fileUrl;
             if (typeof l.fileUrl === 'string') {
-              // upload seulement si base64 ou si tu veux réécrire l'URL
-              try {
-                uploadedUrl = await uploadImageToCloudinary(l.fileUrl, `formations/${id}`);
-              } catch (e) {
-                // si format non supporté: soit on garde l'ancien (laisser undefined), soit on lève une erreur
-                // ici, si l.fileUrl est fourni mais invalide → on lève
-                throw e;
-              }
+              uploadedUrl = await uploadImageToCloudinary(l.fileUrl, `formations/${id}`);
             }
             return {
               where: { lessonId: l.lessonId! },
@@ -181,9 +288,10 @@ export class FormationsService {
                 description: l.description,
                 fileUrl: uploadedUrl,
                 orderIndex: l.orderIndex,
+                ...(typeof l.categoryId === 'number' ? { categoryId: l.categoryId } : {}),
               },
             } satisfies Prisma.LessonUpdateWithWhereUniqueWithoutFormationInput;
-          })
+          }),
         );
 
         lessonsOps.update = updatedPayloads;
@@ -197,19 +305,18 @@ export class FormationsService {
             .map(async (l) => {
               let uploadedUrl = l.fileUrl;
               if (typeof l.fileUrl === 'string') {
-                try {
-                  uploadedUrl = await uploadImageToCloudinary(l.fileUrl, `formations/${id}`);
-                } catch (e) {
-                  throw e;
-                }
+                uploadedUrl = await uploadImageToCloudinary(l.fileUrl, `formations/${id}`);
               }
               return {
                 title: l.title!, // garanti par filter
                 description: l.description,
                 fileUrl: uploadedUrl,
                 orderIndex: l.orderIndex,
+                ...(typeof l.categoryId === 'number'
+                  ? { category: { connect: { categoryId: l.categoryId } } }
+                  : {}),
               } satisfies Prisma.LessonCreateWithoutFormationInput;
-            })
+            }),
         );
 
         if (createdPayloads.length) {
@@ -218,7 +325,9 @@ export class FormationsService {
       }
     }
 
-    return this.prisma.formationContinue.update({
+    const includeBaseCategory = { select: { categoryId: true, name: true } } as const;
+
+    const updated = await this.prisma.formationContinue.update({
       where: { formationId: id },
       data: {
         name: dto.name,
@@ -228,12 +337,21 @@ export class FormationsService {
         comment: dto.comment,
         lessons: Object.keys(lessonsOps).length ? lessonsOps : undefined,
       },
-      include: { category: true, lessons: { orderBy: { orderIndex: 'asc' } } },
+      include: {
+        category: includeBaseCategory,
+        lessons: {
+          orderBy: { orderIndex: 'asc' },
+          include: { category: includeBaseCategory },
+        },
+      },
     });
+
+    return this.mapFormation(updated, true);
   }
 
   // --- helpers ---
-  private async ensureCategory(categoryId: number) {
+  private async ensureCategory(categoryId?: number) {
+    if (!categoryId) return;
     const exists = await this.prisma.category.findUnique({
       where: { categoryId },
       select: { categoryId: true },

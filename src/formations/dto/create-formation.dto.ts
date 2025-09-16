@@ -14,6 +14,8 @@ export class CreateFormationDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+    @IsOptional()
+
   categoryId!: number;
 
   @ApiProperty({ example: 'Interprétation ECG' })

@@ -6,7 +6,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateLessonDto extends PartialType(CreateLessonDto) {
   @ApiPropertyOptional({
-    description: 'Identifiant de la leçon à mettre à jour (si présent => update, si absent => create)',
+    description:
+      'Identifiant de la leçon à mettre à jour (si présent => update, si absent => create)',
     example: 42,
   })
   @IsOptional()
@@ -15,9 +16,10 @@ export class UpdateLessonDto extends PartialType(CreateLessonDto) {
   @Min(1)
   lessonId?: number;
 
-  // Hérité de CreateLessonDto :
+  // Hérités de CreateLessonDto :
   // - title?: string
   // - description?: string
-  // - fileUrl?: string (http(s) OU data:...;base64,...)
+  // - fileUrl?: string
   // - orderIndex?: number
+  // - categoryId?: number
 }

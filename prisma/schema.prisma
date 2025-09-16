@@ -366,19 +366,20 @@ model Category {
 
   @@index([name])
   @@map("categories")
+  Lesson Lesson[]
 }
 
 model FormationContinue {
   formationId Int      @id @default(autoincrement())
   name        String
-  categoryId  Int
+  categoryId  Int?
   competence  String
   dureeHeures Int
   comment     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  category Category @relation(fields: [categoryId], references: [categoryId])
+  category Category? @relation(fields: [categoryId], references: [categoryId])
   lessons  Lesson[]
 
   @@index([categoryId, name])
@@ -389,6 +390,8 @@ model Lesson {
   lessonId    Int      @id @default(autoincrement())
   title       String
   description String?
+  categoryId  Int?
+
   fileUrl     String?
   orderIndex  Int?
   formationId Int
@@ -396,6 +399,7 @@ model Lesson {
   updatedAt   DateTime @updatedAt
 
   formation FormationContinue @relation(fields: [formationId], references: [formationId])
+  category  Category?          @relation(fields: [categoryId], references: [categoryId])
 
   @@index([formationId, orderIndex])
   @@map("lessons")

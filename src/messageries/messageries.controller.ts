@@ -1,51 +1,98 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+
 import { MessageriesService } from './messageries.service';
-import { SendMessageDto } from './dto/send-message.dto';
+import { SendDmMessageDto } from './dto/send-dm-message.dto';
 import { QueryConversationsDto } from './dto/query-conversations.dto';
-import { QueryMessagesDto } from './dto/query-messages.dto';
+import { QueryMessagesDto } from 'src/common/dto/query-messages.dto';
 import { MarkConversationReadDto } from './dto/mark-conversation-read.dto';
 import { QueryConversationDetailDto } from './dto/query-conversation-detail.dto';
+import { SendFicheRequestDto } from './dto/send-fiche-request.dto';
+import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
 
-@ApiTags('messageries')
+@ApiTags('messageries (DM)')
 @Controller('messageries')
 export class MessageriesController {
   constructor(private readonly svc: MessageriesService) {}
 
+  /* ---------- DM texte / fichiers ---------- */
   @Post('messages')
-  @ApiOperation({ summary: 'Envoyer un message (texte ou form)' })
-  send(@Body() dto: SendMessageDto) {
-    // ✅ Swagger verra bien le schéma grâce au DTO concret
-    return this.svc.sendMessage(dto.senderId, dto);
+  @ApiOperation({ summary: 'Envoyer un message DM (médecin ↔ patient)' })
+  @ApiBody({
+    schema: {
+      example: {
+        medecinId: 2,
+        patientId: 7,
+        senderId: 7,
+        content: 'Bonjour docteur, j’ai des maux de tête.',
+        meta: { attachments: [{ name: 'photo.jpg', url: 'https://...' }] }
+      }
+    }
+  })
+  send(@Body() dto: SendDmMessageDto) {
+    return this.svc.sendDmMessage(dto.senderId, dto);
   }
 
   @Get('conversations')
-  @ApiOperation({ summary: 'Lister les conversations (filtres & pagination)' })
+  @ApiOperation({ summary: 'Lister les conversations (filtres, pagination, non-lus)' })
   listConversations(@Query() query: QueryConversationsDto) {
     return this.svc.listConversations(query);
   }
 
   @Get('conversations/:id/messages')
-  @ApiOperation({ summary: 'Lister les messages d’une conversation (pagination)' })
+  @ApiOperation({ summary: 'Lister les messages d’une conversation (asc, pagination)' })
   listMessages(@Param('id') id: string, @Query() query: QueryMessagesDto) {
     return this.svc.listMessages(Number(id), query);
   }
 
   @Patch('conversations/:id/read')
-@ApiOperation({ summary: 'Marquer tous les messages reçus comme lus' })
-@ApiBody({ type: MarkConversationReadDto }) // <- aide Swagger à afficher le body
-markRead(@Param('id') id: string, @Body() dto: MarkConversationReadDto) {
-  return this.svc.markConversationRead(Number(id), dto.readerId);
-}
+  @ApiOperation({ summary: 'Marquer tous les messages reçus comme lus' })
+  @ApiBody({ schema: { example: { readerId: 7 } } })
+  markRead(@Param('id') id: string, @Body() dto: MarkConversationReadDto) {
+    return this.svc.markConversationRead(Number(id), dto.readerId);
+  }
 
-@Get('conversations/:id')
-  @ApiOperation({
-    summary: 'Obtenir une conversation (marque comme lue pour readerId) – messages du plus récent au plus ancien',
-  })
-  getConversation(
-    @Param('id') id: string,
-    @Query() query: QueryConversationDetailDto,
-  ) {
+  @Get('conversations/:id')
+  @ApiOperation({ summary: 'Détail conversation (mark-as-read), messages triés DESC' })
+  getConversation(@Param('id') id: string, @Query() query: QueryConversationDetailDto) {
     return this.svc.getConversationAndMarkRead(Number(id), query);
+  }
+
+  @Get('unread-overview')
+  @ApiOperation({ summary: 'Récapitulatif des non-lus (DM + cas difficiles) pour un utilisateur' })
+  unreadOverview(@Query('forUserId') forUserId: string) {
+    return this.svc.getUnreadOverview(Number(forUserId));
+  }
+
+  /* ---------- Fiches : ENVOI / RÉPONSE dans les DM ---------- */
+  @Post('fiches/requests')
+  @ApiOperation({ summary: 'Envoyer une DEMANDE de fiche (dans un DM, médecin → patient)' })
+  @ApiBody({ schema: { example: { conversationId: 5, ficheId: 1, senderId: 2 } } })
+  sendFicheRequest(@Body() dto: SendFicheRequestDto) {
+    return this.svc.sendFicheRequest(dto);
+  }
+
+  @Post('fiches/responses')
+  @ApiOperation({ summary: 'Soumettre une RÉPONSE de fiche (dans un DM)' })
+  @ApiBody({
+    schema: {
+      example: {
+        conversationId: 5, ficheId: 1, senderId: 7,
+        answers: [
+          { questionId: 10, valueText: 'Depuis 3 jours' },
+          { questionId: 11, valueText: 'Lumière, écrans' }
+        ],
+        requestMessageId: 42
+      }
+    }
+  })
+  submitFicheResponse(@Body() dto: SubmitFicheResponseDto) {
+    return this.svc.submitFicheResponse(dto);
+  }
+
+  @Get('fiches/responses/by-conversation/:conversationId')
+  @ApiOperation({ summary: 'Lister les réponses de fiches pour une conversation' })
+  listFicheResponsesByConversation(@Param('conversationId') conversationId: string) {
+    return this.svc.listFicheResponsesByConversation(Number(conversationId));
   }
 }

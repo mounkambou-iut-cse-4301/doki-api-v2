@@ -54,6 +54,18 @@ enum TransactionType {
   RESERVATION
   ABONNEMENT
 }
+enum MessageKind {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+  FICHE_REQUEST     // DM uniquement
+  FICHE_RESPONSE    // DM uniquement
+}
+
+/* =========================
+   =======  MODELS  ========
+   ========================= */
 
 model User {
   userId        Int      @id @default(autoincrement())
@@ -75,13 +87,15 @@ model User {
   profile       String?
   weight        Decimal? @db.Decimal(5, 2)
   matricule     String?
-  expotoken String? @db.VarChar(255)
+  expotoken     String?  @db.VarChar(255)
   isBlock       Boolean  @default(false)
   isVerified    Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   speciality    Speciality?    @relation(fields: [specialityId], references: [specialityId])
+
+  /* Relations métier existantes */
   feedbacksMed  Feedback[]     @relation("MedecinFeedbacks")
   feedbacksPat  Feedback[]     @relation("PatientFeedbacks")
   favoritesMed  Favorite[]     @relation("MedecinFavorites")
@@ -97,83 +111,199 @@ model User {
   soldes        SoldeMedecin[]
 
   PasswordReset PasswordReset[]
+  Notification  Notification[]
+  Suivi         Suivi[]
 
-  Notification Notification[]
-
-  Suivi Suivi[]
-
-    // Messageries — conversations où l'utilisateur est médecin ou patient
+  /* DM */
   conversationsMed Conversation[] @relation("MedecinConversations")
   conversationsPat Conversation[] @relation("PatientConversations")
-
-  // Messageries — messages envoyés / reçus
   messagesSent     Message[]      @relation("MessageSender")
   messagesReceived Message[]      @relation("MessageReceiver")
+
+  /* Cas difficiles (curseurs de lecture) */
+  casReads CasReadState[]
+
+  /* Fiches : back-relations nommées pour lever toute ambiguïté */
+  fichesCreees             FicheStructuree[] @relation("FicheStructureeCreator")
+  fichesReponsesEnvoyees   FicheReponse[]    @relation("FicheReponseSender")
+  fichesReponsesPourUser   FicheReponse[]    @relation("FicheReponseSubmittedFor")
+
+  /* Cas difficiles créés */
+  casCreees                CasDifficile[]    @relation("CasDifficileCreator")
 }
-
-
-
 
 model Conversation {
-conversationId Int @id @default(autoincrement())
-medecinId Int
-patientId Int
-lastMessageAt DateTime @default(now())
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  conversationId Int      @id @default(autoincrement())
+  medecinId      Int
+  patientId      Int
+  lastMessageAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  medecin  User @relation("MedecinConversations", fields: [medecinId], references: [userId])
+  patient  User @relation("PatientConversations", fields: [patientId], references: [userId])
+  messages Message[]
 
-medecin User @relation("MedecinConversations", fields: [medecinId], references: [userId])
-patient User @relation("PatientConversations", fields: [patientId], references: [userId])
-messages Message[]
-
-
-@@unique([medecinId, patientId])
-@@index([medecinId])
-@@index([patientId])
+  @@unique([medecinId, patientId])
+  @@index([medecinId])
+  @@index([patientId])
+  FicheReponse FicheReponse[]
 }
 
-
 model Message {
-  messageId      Int          @id @default(autoincrement())
-  conversationId Int
-  senderId       Int
-  receiverId     Int
-  content        String?
-  meta           Json?
-  isRead         Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  messageId       Int          @id @default(autoincrement())
+  kind            MessageKind  @default(TEXT)
+  conversationId  Int?
+  casId           Int?
+  senderId        Int
+  receiverId      Int?
+  content         String?
+  meta            Json?
+ficheId         Int?         // FICHE_REQUEST
+ficheReponseId  Int?         @unique // FICHE_RESPONSE
+isRead          Boolean      @default(false)
+isAnonymous     Boolean      @default(false)
+createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  conversation Conversation @relation(fields: [conversationId], references: [conversationId])
-  sender       User         @relation("MessageSender", fields: [senderId], references: [userId])
-  receiver     User         @relation("MessageReceiver", fields: [receiverId], references: [userId])
+  conversation   Conversation?    @relation(fields: [conversationId], references: [conversationId])
+  cas            CasDifficile?    @relation(fields: [casId], references: [casId])
+
+  sender         User             @relation("MessageSender",   fields: [senderId],   references: [userId])
+  receiver       User?            @relation("MessageReceiver", fields: [receiverId], references: [userId])
+
+  // Fiche request (1 fiche ↔ * messages)
+  fiche          FicheStructuree? @relation("FicheRequestMessages", fields: [ficheId], references: [ficheId])
+
+  // Fiche response (1–1 via FK côté Message)
+  ficheReponse   FicheReponse?    @relation("MessageFicheReponse", fields: [ficheReponseId], references: [ficheReponseId])
 
   @@index([conversationId, createdAt])
   @@index([receiverId, isRead])
+  @@index([casId, createdAt])
+  @@index([ficheId])
+  @@index([ficheReponseId])
 }
 
+/* ===== Cas difficiles (ouverts médecins) ===== */
+model CasDifficile {
+  casId       Int      @id @default(autoincrement())
+  name        String
+  description String?
+  diseaseCode String?
+  createdBy   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator  User     @relation("CasDifficileCreator", fields: [createdBy], references: [userId])
+  messages Message[]
+  reads    CasReadState[]
+}
+
+model CasReadState {
+  id         Int      @id @default(autoincrement())
+  casId      Int
+  userId     Int
+  lastReadAt DateTime @default(now())
+
+  cas  CasDifficile @relation(fields: [casId], references: [casId])
+  user User         @relation(fields: [userId], references: [userId])
+
+  @@unique([casId, userId])
+  @@index([userId])
+}
+
+/* ===== Fiches structurées simples (DM only) ===== */
+model FicheStructuree {
+  ficheId      Int      @id @default(autoincrement())
+  title        String
+  description  String?
+  createdBy    Int
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creator   User             @relation("FicheStructureeCreator", fields: [createdBy], references: [userId])
+  questions FicheQuestion[]
+  reponses  FicheReponse[]
+
+  // back de Message.fiche (relation nommée)
+  requests  Message[]        @relation("FicheRequestMessages")
+
+  @@index([createdBy, isActive])
+}
+
+model FicheQuestion {
+  ficheQuestionId Int      @id @default(autoincrement())
+  ficheId         Int
+  label           String
+  orderIndex      Int      @default(0)
+
+  fiche FicheStructuree @relation(fields: [ficheId], references: [ficheId])
+
+  // back vers les items de réponses (optionnel mais on le nomme pour lever toute ambiguïté)
+  items FicheReponseItem[] @relation("QuestionItems")
+
+  @@index([ficheId, orderIndex])
+}
+
+model FicheReponse {
+  ficheReponseId     Int      @id @default(autoincrement())
+  ficheId            Int
+  conversationId     Int
+  senderId           Int
+  submittedForUserId Int?
+  submittedAt        DateTime @default(now())
+
+  fiche        FicheStructuree @relation(fields: [ficheId], references: [ficheId])
+  conversation Conversation     @relation(fields: [conversationId], references: [conversationId])
+  // 2 relations vers User => NOMMER les deux
+  sender       User            @relation("FicheReponseSender",        fields: [senderId],           references: [userId])
+  submittedFor User?           @relation("FicheReponseSubmittedFor",  fields: [submittedForUserId], references: [userId])
+
+  // 1–* vers items (relation nommée)
+  items        FicheReponseItem[] @relation("ReponseItems")
+
+  // 1–1 avec Message via FK côté Message → on nomme la relation pair
+  message      Message?        @relation("MessageFicheReponse")
+
+  @@index([conversationId])
+  @@index([ficheId, submittedAt])
+}
+
+model FicheReponseItem {
+  ficheReponseItemId Int   @id @default(autoincrement())
+  ficheReponseId     Int
+  questionId         Int
+  valueText          String
+
+  // côtés nommés pour éviter toute ambiguïté
+  reponse  FicheReponse  @relation("ReponseItems", fields: [ficheReponseId], references: [ficheReponseId])
+  question FicheQuestion @relation("QuestionItems", fields: [questionId], references: [ficheQuestionId])
+
+  @@unique([ficheReponseId, questionId])
+}
+
+/* ===== Reste de tes modèles “métier” inchangés (copie corrigée) ===== */
+
 model Notification {
-notificationId Int @id @default(autoincrement())
-title String
-message String
-isRead Boolean @default(false)
-userId Int
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
-
-
-user User @relation(fields: [userId], references: [userId])
-
-
-@@index([userId, isRead, createdAt])
+  notificationId Int      @id @default(autoincrement())
+  title          String
+  message        String
+  isRead         Boolean  @default(false)
+  userId         Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user User @relation(fields: [userId], references: [userId])
+  @@index([userId, isRead, createdAt])
 }
 
 model Speciality {
-  specialityId                Int     @id @default(autoincrement())
+  specialityId                Int      @id @default(autoincrement())
   name                        String
-  consultationPrice           Decimal @db.Decimal(10, 2)
-  consultationDuration        Int // durée en minutes pour une consultation
-  planMonthAmount             Decimal @db.Decimal(10, 2)
+  consultationPrice           Decimal  @db.Decimal(10, 2)
+  consultationDuration        Int
+  planMonthAmount             Decimal  @db.Decimal(10, 2)
   numberOfTimePlanReservation Int
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
@@ -181,7 +311,7 @@ model Speciality {
 }
 
 model Feedback {
-  feedbackId Int     @id @default(autoincrement())
+  feedbackId Int      @id @default(autoincrement())
   medecinId  Int
   patientId  Int
   note       Int
@@ -194,7 +324,7 @@ model Feedback {
 }
 
 model Favorite {
-  favoriteId Int @id @default(autoincrement())
+  favoriteId Int      @id @default(autoincrement())
   medecinId  Int
   patientId  Int
   createdAt  DateTime @default(now())
@@ -205,7 +335,7 @@ model Favorite {
 }
 
 model Video {
-  videoId     Int     @id @default(autoincrement())
+  videoId     Int      @id @default(autoincrement())
   title       String
   path        String
   description String?
@@ -213,26 +343,24 @@ model Video {
   medecinId   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   medecin User @relation(fields: [medecinId], references: [userId])
 }
 
 model Planning {
-  planningId Int     @id @default(autoincrement())
-  debutHour  String // TIME
-  endHour    String // TIME
-  lundi      Boolean @default(false)
-  mardi      Boolean @default(false)
-  mercredi   Boolean @default(false)
-  jeudi      Boolean @default(false)
-  vendredi   Boolean @default(false)
-  samedi     Boolean @default(false)
-  dimanche   Boolean @default(false)
-  isClosed   Boolean @default(false)
+  planningId Int      @id @default(autoincrement())
+  debutHour  String
+  endHour    String
+  lundi      Boolean  @default(false)
+  mardi      Boolean  @default(false)
+  mercredi   Boolean  @default(false)
+  jeudi      Boolean  @default(false)
+  vendredi   Boolean  @default(false)
+  samedi     Boolean  @default(false)
+  dimanche   Boolean  @default(false)
+  isClosed   Boolean  @default(false)
   medecinId  Int
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
   medecin User @relation(fields: [medecinId], references: [userId])
 }
 
@@ -279,12 +407,11 @@ model Reservation {
 }
 
 model SoldeMedecin {
-  soldeMedecinId Int     @id @default(autoincrement())
-  solde          Decimal @default(0) @db.Decimal(10, 2)
+  soldeMedecinId Int      @id @default(autoincrement())
+  solde          Decimal  @default(0) @db.Decimal(10, 2)
   medecinId      Int
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
   medecin User @relation(fields: [medecinId], references: [userId])
 }
 
@@ -302,14 +429,14 @@ model Transaction {
 }
 
 model Ordonance {
-  ordonanceId     Int     @id @default(autoincrement())
-  dureeTraitement String? @db.VarChar(100)
+  ordonanceId     Int      @id @default(autoincrement())
+  dureeTraitement String?  @db.VarChar(100)
   traitement      Json?
   comment         String?
   medecinId       Int
   patientId       Int
   images          Json?
-  reservationId   Int     @unique
+  reservationId   Int      @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -321,26 +448,24 @@ model Ordonance {
 }
 
 model Suivi {
-suiviId Int @id @default(autoincrement())
-patientId Int
-nomMedicament String
-dosage String?
-frequence String?
-heure String // "HH:mm"
-date String // "YYYY-MM-DD"
-stock Int?
-isTaken Boolean @default(false)
-ordonanceId Int?
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  suiviId       Int      @id @default(autoincrement())
+  patientId     Int
+  nomMedicament String
+  dosage        String?
+  frequence     String?
+  heure         String  // "HH:mm"
+  date          String  // "YYYY-MM-DD"
+  stock         Int?
+  isTaken       Boolean @default(false)
+  ordonanceId   Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
+  patient   User       @relation(fields: [patientId], references: [userId])
+  ordonance Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
 
-patient User @relation(fields: [patientId], references: [userId])
-ordonance Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
-
-
-@@index([patientId, date, isTaken])
-@@unique([patientId, date, heure, nomMedicament])
+  @@index([patientId, date, isTaken])
+  @@unique([patientId, date, heure, nomMedicament])
 }
 
 model PasswordReset {
@@ -363,10 +488,10 @@ model Category {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   formations  FormationContinue[]
+  Lesson      Lesson[]
 
   @@index([name])
   @@map("categories")
-  Lesson Lesson[]
 }
 
 model FormationContinue {
@@ -391,7 +516,6 @@ model Lesson {
   title       String
   description String?
   categoryId  Int?
-
   fileUrl     String?
   orderIndex  Int?
   formationId Int
@@ -399,7 +523,7 @@ model Lesson {
   updatedAt   DateTime @updatedAt
 
   formation FormationContinue @relation(fields: [formationId], references: [formationId])
-  category  Category?          @relation(fields: [categoryId], references: [categoryId])
+  category  Category?         @relation(fields: [categoryId], references: [categoryId])
 
   @@index([formationId, orderIndex])
   @@map("lessons")

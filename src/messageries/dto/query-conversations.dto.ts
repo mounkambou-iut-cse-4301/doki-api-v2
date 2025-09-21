@@ -11,19 +11,19 @@ export class QueryConversationsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   patientId?: number;
 
-  @ApiPropertyOptional({ description: 'Utilisateur pour compter les non-lus' })
+  @ApiPropertyOptional({ description: 'Calcul du non-lu pour cet utilisateur' })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   forUserId?: number;
 
-  @ApiPropertyOptional({ description: 'Seulement les conversations avec des non-lus (pour forUserId)' })
+  @ApiPropertyOptional({ description: 'Seulement les conversations avec non-lus (pour forUserId)' })
   @IsOptional() @Type(() => Boolean) @IsBoolean()
   unreadOnly?: boolean;
 
-  @ApiPropertyOptional({ description: 'Page', default: 1 })
+  @ApiPropertyOptional({ default: 1 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page?: number = 1;
 
-  @ApiPropertyOptional({ description: 'Limite', default: 10 })
+  @ApiPropertyOptional({ default: 10 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   limit?: number = 10;
 }

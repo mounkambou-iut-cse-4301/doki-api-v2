@@ -3,15 +3,15 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Min } from 'class-validator';
 
 export class QueryMessagesDto {
-  @ApiPropertyOptional({ description: 'Utilisateur (optionnel) pour contrôle d’accès' })
+  @ApiPropertyOptional({ description: 'Utilisateur (optionnel) pour contrôle d’accès / lecture' })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   forUserId?: number;
 
-  @ApiPropertyOptional({ description: 'Page', default: 1 })
+  @ApiPropertyOptional({ default: 1 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page?: number = 1;
 
-  @ApiPropertyOptional({ description: 'Limite', default: 20 })
+  @ApiPropertyOptional({ default: 20 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   limit?: number = 20;
 }

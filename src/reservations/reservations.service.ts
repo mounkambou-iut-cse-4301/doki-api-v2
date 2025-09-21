@@ -480,6 +480,18 @@ async findAll(query: QueryReservationDto) {
     if (query.date) where.date = query.date;
     if (query.type) where.type = query.type;
     if (query.status) where.status = query.status;
+    if (query.q && query.q.trim()) {
+  const q = query.q.trim();
+  where.AND ??= [];
+  where.AND.push({
+    OR: [
+      { patientName: { contains: q } },
+      { medecin: { OR: [{ firstName: { contains: q } }, { lastName:  { contains: q } }] } },
+      { patient: { OR: [{ firstName: { contains: q } }, { lastName:  { contains: q } }] } },
+    ],
+  });
+}
+
 
     // On inclut profil + spécialité pour le médecin, et profil pour le patient
     const include = {

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CreateSpecialityDto } from './dto/create-specialityDto';
 import { UpdateSpecialityDto } from './dto/update-specialityDto';
+import { QuerySpecialityDto } from './dto/query-specialityDto';
 
 @Injectable()
 export class SpecialitiesService {
@@ -83,40 +84,25 @@ export class SpecialitiesService {
     }
   }
 
-  async findAll(page = 1, limit = 10) {
-    try {
-      if (page < 1 || limit < 1) {
-        throw new BadRequestException({
-          message: 'Les paramètres page et limit doivent être >= 1',
-          messageE: 'Page and limit parameters must be >= 1',
-        });
-      }
-      const skip = (page - 1) * limit;
-      const [items, total] = await this.prismaService.$transaction([
-        this.prismaService.speciality.findMany({
-          skip,
-          take: limit,
-          orderBy: { name: 'asc' },
-        }),
-        this.prismaService.speciality.count(),
-      ]);
-      return {
-        items,
-        meta: {
-          total,
-          page,
-          limit,
-          lastPage: Math.ceil(total / limit),
-        },
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException({
-        message: `Erreur récupération : ${error.message}`,
-        messageE: `Error while fetching: ${error.message}`,
-      });
-    }
+async findAll(query: QuerySpecialityDto) {
+  const page  = query.page ?? 1;
+  const limit = query.limit ?? 10;
+  const skip  = (page - 1) * limit;
+
+  const where: any = {};
+  if (query.q && query.q.trim()) {
+    where.name = { contains: query.q.trim() };
   }
+
+  const [items, total] = await this.prismaService.$transaction([
+    this.prismaService.speciality.findMany({
+      where, skip, take: limit, orderBy: { name: 'asc' },
+    }),
+    this.prismaService.speciality.count({ where }),
+  ]);
+  return { items, meta: { total, page, limit, lastPage: Math.ceil(total/limit) } };
+}
+
 
   async findOne(id: number) {
     try {

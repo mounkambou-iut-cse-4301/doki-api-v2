@@ -7,11 +7,17 @@ import {
   Min,
   IsDateString,
   IsEnum,
+  IsString,
 } from 'class-validator';
 import { ReservationType, ReservationStatus } from 'generated/prisma';
 
 
 export class QueryReservationDto {
+
+    @ApiPropertyOptional({ description: 'Recherche (patientName, noms médecin/patient)' })
+  @IsOptional() @IsString()
+  q?: string;
+
   @ApiPropertyOptional({ description: 'Filtrer par ID médecin' })
   @IsOptional() @Type(() => Number) @IsInt()
   medecinId?: number;

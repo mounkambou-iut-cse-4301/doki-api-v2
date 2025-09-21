@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString } from 'class-validator';
 
 export class TreatmentItemDto {
+  
   @ApiProperty() @IsString() name: string;
   @ApiProperty() @IsString() dosage: string;
   @ApiProperty() @IsString() forme: string;

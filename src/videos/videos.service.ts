@@ -115,6 +115,15 @@ export class VideosService {
       if (query.medecinId) where.medecinId = Number(query.medecinId);
       if (query.category)  where.category  = { equals: query.category, mode: 'insensitive' };
       if (query.date)      where.createdAt = dayRangeInTZ(query.date);
+      if (query.q && query.q.trim()) {
+  const q = query.q.trim();
+  where.OR = [
+    { title:       { contains: q } },
+    { description: { contains: q } },
+    { category:    { contains: q } },
+  ];
+}
+
 
       const [items, total] = await this.prisma.$transaction([
         this.prisma.video.findMany({

@@ -229,6 +229,27 @@ export class AdminsService {
     if (query.status) where.status = query.status;
     if (query.type)   where.type   = query.type;
     if (query.year && query.month) where.createdAt = monthRange(query.year, query.month);
+    if (query.q && query.q.trim()) {
+  const q = query.q.trim();
+  where.AND ??= [];
+  where.AND.push({
+    OR: [
+      { paymentId: { contains: q } },
+      { reservations: { some: {
+          OR: [
+            { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+            { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+          ],
+      } } },
+      { abonnements: { some: {
+          OR: [
+            { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+            { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+          ],
+      } } },
+    ],
+  });
+}
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.transaction.findMany({

@@ -184,86 +184,150 @@ export class AbonnementsService {
    * - date (YYYY-MM-DD) : filtre la journée locale Africa/Douala
    * - pagination page/limit (coercion en number)
    */
-  async findAll(query: QueryAbonnementDto): Promise<any> {
-    const page: number = query.page != null ? Number(query.page) : 1;
-    const limit: number = query.limit != null ? Number(query.limit) : 10;
+//   async findAll(query: QueryAbonnementDto): Promise<any> {
+//     const page: number = query.page != null ? Number(query.page) : 1;
+//     const limit: number = query.limit != null ? Number(query.limit) : 10;
 
-    if (Number.isNaN(page) || Number.isNaN(limit) || page < 1 || limit < 1) {
-      throw new BadRequestException({
-        message: 'Page et limit doivent être >= 1.',
-        messageE: 'Page and limit must be >= 1.',
-      });
-    }
-    const skip = (page - 1) * limit;
+//     if (Number.isNaN(page) || Number.isNaN(limit) || page < 1 || limit < 1) {
+//       throw new BadRequestException({
+//         message: 'Page et limit doivent être >= 1.',
+//         messageE: 'Page and limit must be >= 1.',
+//       });
+//     }
+//     const skip = (page - 1) * limit;
 
-    const where: any = {};
-    if (query.medecinId) where.medecinId = Number(query.medecinId);
-    if (query.patientId) where.patientId = Number(query.patientId);
+//     const where: any = {};
+//     if (query.medecinId) where.medecinId = Number(query.medecinId);
+//     if (query.patientId) where.patientId = Number(query.patientId);
 
-    if (query.date) {
-      const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
-      where.debutDate = { gte, lt };
-    }
+//     if (query.date) {
+//       const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
+//       where.debutDate = { gte, lt };
+//     }
 
-    // const [items, total] = await this.prisma.$transaction([
-    //   this.prisma.abonnement.findMany({
-    //     where,
-    //     skip,
-    //     take: limit,
-    //     orderBy: { debutDate: 'desc' },
-    //   }),
-    //   this.prisma.abonnement.count({ where }),
-    // ]);
-const [items, total] = await this.prisma.$transaction([
-  this.prisma.abonnement.findMany({
-    where,
-    skip,
-    take: limit,
-    orderBy: { debutDate: 'desc' },
-    include: {
-      medecin: {
-        select: {
-          userId: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          profile: true,
-          speciality: {
-            select: {
-              specialityId: true,
-              name: true,
-              consultationPrice: true,
-              consultationDuration: true,
-              planMonthAmount: true,
-              numberOfTimePlanReservation: true,
+//     // const [items, total] = await this.prisma.$transaction([
+//     //   this.prisma.abonnement.findMany({
+//     //     where,
+//     //     skip,
+//     //     take: limit,
+//     //     orderBy: { debutDate: 'desc' },
+//     //   }),
+//     //   this.prisma.abonnement.count({ where }),
+//     // ]);
+// const [items, total] = await this.prisma.$transaction([
+//   this.prisma.abonnement.findMany({
+//     where,
+//     skip,
+//     take: limit,
+//     orderBy: { debutDate: 'desc' },
+//     include: {
+//       medecin: {
+//         select: {
+//           userId: true,
+//           firstName: true,
+//           lastName: true,
+//           email: true,
+//           phone: true,
+//           profile: true,
+//           speciality: {
+//             select: {
+//               specialityId: true,
+//               name: true,
+//               consultationPrice: true,
+//               consultationDuration: true,
+//               planMonthAmount: true,
+//               numberOfTimePlanReservation: true,
+//             },
+//           },
+//         },
+//       },
+//       patient: {
+//         select: {
+//           userId: true,
+//           firstName: true,
+//           lastName: true,
+//           email: true,
+//           phone: true,
+//           profile: true,
+//         },
+//       },
+//       transaction: true,
+//     },
+//   }),
+//   this.prisma.abonnement.count({ where }),
+// ]);
+
+//     return {
+//       message: 'Abonnements récupérés.',
+//       messageE: 'Subscriptions fetched.',
+//       items,
+//       meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+//     };
+//   }
+async findAll(query: QueryAbonnementDto): Promise<any> {
+  const page: number  = query.page  != null ? Number(query.page)  : 1;
+  const limit: number = query.limit != null ? Number(query.limit) : 10;
+  if (Number.isNaN(page) || Number.isNaN(limit) || page < 1 || limit < 1) {
+    throw new BadRequestException({
+      message: 'Page et limit doivent être >= 1.',
+      messageE: 'Page and limit must be >= 1.',
+    });
+  }
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+  if (query.medecinId) where.medecinId = Number(query.medecinId);
+  if (query.patientId) where.patientId = Number(query.patientId);
+
+  if (query.date) {
+    const { gte, lt } = localDayRange(query.date, 'Africa/Douala'); // helper déjà présent dans ton fichier
+    where.debutDate = { gte, lt };
+  }
+
+  if (query.q && query.q.trim()) {
+    const q = query.q.trim();
+    (where.AND ??= []).push({
+      OR: [
+        { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+        { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+      ],
+    });
+  }
+
+  const [items, total] = await this.prisma.$transaction([
+    this.prisma.abonnement.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { debutDate: 'desc' },
+      include: {
+        medecin: {
+          select: {
+            userId: true, firstName: true, lastName: true, email: true, phone: true, profile: true,
+            speciality: {
+              select: {
+                specialityId: true, name: true, consultationPrice: true,
+                consultationDuration: true, planMonthAmount: true, numberOfTimePlanReservation: true,
+              },
             },
           },
         },
-      },
-      patient: {
-        select: {
-          userId: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          profile: true,
+        patient: {
+          select: { userId: true, firstName: true, lastName: true, email: true, phone: true, profile: true },
         },
+        transaction: true,
       },
-      transaction: true,
-    },
-  }),
-  this.prisma.abonnement.count({ where }),
-]);
+    }),
+    this.prisma.abonnement.count({ where }),
+  ]);
 
-    return {
-      message: 'Abonnements récupérés.',
-      messageE: 'Subscriptions fetched.',
-      items,
-      meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
-    };
-  }
+  return {
+    message: 'Abonnements récupérés.',
+    messageE: 'Subscriptions fetched.',
+    items,
+    meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+  };
+}
 
   /**
    * Confirmer manuellement un abonnement :

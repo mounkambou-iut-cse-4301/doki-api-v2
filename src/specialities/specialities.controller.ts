@@ -58,7 +58,7 @@ export class SpecialitiesController {
     // Conversion manuelle
     const page = parseInt(query.page as any, 10) || 1;
     const limit = parseInt(query.limit as any, 10) || 10;
-    return this.specialityService.findAll(page, limit);
+    return this.specialityService.findAll({ ...query, page, limit });
   }
 
   @Get(':id')

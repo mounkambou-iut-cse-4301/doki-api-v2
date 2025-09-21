@@ -12,7 +12,11 @@ import {
 import { UserType } from 'generated/prisma';
 
 export class QueryUserDto {
-  @ApiPropertyOptional({ description: 'Recherche par nom/prénom' })
+  @ApiPropertyOptional({ description: 'Recherche par nom/prénom', name: 'q' })
+  @IsOptional() @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({ description: 'Recherche (alias historique)', name: 'name' })
   @IsOptional() @IsString()
   name?: string;
 

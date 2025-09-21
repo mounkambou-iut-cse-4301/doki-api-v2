@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsInt, Min, IsDateString } from 'class-validator';
+import { IsOptional, IsInt, Min, IsDateString, IsString } from 'class-validator';
 
 export class QueryAbonnementDto {
   @ApiPropertyOptional({ description: 'Filtrer par médecin (ID)' })
@@ -14,6 +14,10 @@ export class QueryAbonnementDto {
   @ApiPropertyOptional({ description: 'Filtrer par date de début (YYYY-MM-DD)' })
   @IsOptional() @IsDateString()
   date?: string;
+
+  @ApiPropertyOptional({ description: 'Recherche (noms médecin/patient)' })
+  @IsOptional() @IsString()
+  q?: string;
 
   @ApiPropertyOptional({ description: 'Page (>=1)', default: 1 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)

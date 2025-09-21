@@ -33,27 +33,77 @@ export class OrdonancesService {
       },
     });
   }
-async findAll(filters: OrdonanceFilterDto): Promise<Ordonance[]> {
-        const { medecinId, patientId, reservationId, createdAt, dureeTraitement, comment, page = 1, limit = 10 } = filters;
-        const skip = (page - 1) * limit;
+// async findAll(filters: OrdonanceFilterDto): Promise<Ordonance[]> {
+//         const { medecinId, patientId, reservationId, createdAt, dureeTraitement, comment, page = 1, limit = 10 } = filters;
+//         const skip = (page - 1) * limit;
 
-        const where: Prisma.OrdonanceWhereInput = {
-            ...(medecinId && { medecinId }),
-            ...(patientId && { patientId }),
-            ...(reservationId && { reservationId }),
-            ...(createdAt && { createdAt: { gte: new Date(createdAt) } }),
-            ...(dureeTraitement && { dureeTraitement: { contains: dureeTraitement } }),
-            ...(comment && { comment: { contains: comment } }),
-        };
+// const where: Prisma.OrdonanceWhereInput = {
+//   ...(medecinId && { medecinId }),
+//   ...(patientId && { patientId }),
+//   ...(reservationId && { reservationId }),
+//   ...(createdAt && { createdAt: { gte: new Date(createdAt) } }),
+//   ...(dureeTraitement && { dureeTraitement: { contains: dureeTraitement } }),
+//   ...(comment && { comment: { contains: comment } }),
+// };
 
-        const ordonnances = await this.prisma.ordonance.findMany({
-            where,
-            skip,
-            take: limit,
-        });
+// if (filters.q && filters.q.trim()) {
+//   const q = filters.q.trim();
+//   (where.AND ??= []).push({
+//     OR: [
+//       { dureeTraitement: { contains: q } },
+//       { comment:         { contains: q } },
+//       { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+//       { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+//     ],
+//   });
+// }
 
-        return ordonnances;
-    }
+
+//         const ordonnances = await this.prisma.ordonance.findMany({
+//             where,
+//             skip,
+//             take: limit,
+//         });
+
+//         return ordonnances;
+//     }
+
+async findAll(filters: OrdonanceFilterDto) {
+  const { medecinId, patientId, reservationId, createdAt, dureeTraitement, comment, page = 1, limit = 10, q } = filters;
+  const skip = (page - 1) * limit;
+
+  const where: any = {
+    ...(medecinId && { medecinId }),
+    ...(patientId && { patientId }),
+    ...(reservationId && { reservationId }),
+    ...(createdAt && { createdAt: { gte: new Date(createdAt) } }),
+    ...(dureeTraitement && { dureeTraitement: { contains: dureeTraitement } }),
+    ...(comment && { comment: { contains: comment } }),
+  };
+
+  if (q && q.trim()) {
+    const s = q.trim();
+    (where.AND ??= []).push({
+      OR: [
+        { dureeTraitement: { contains: s } },
+        { comment:         { contains: s } },
+        { medecin: { OR: [{ firstName: { contains: s } }, { lastName: { contains: s } }] } },
+        { patient: { OR: [{ firstName: { contains: s } }, { lastName: { contains: s } }] } },
+      ],
+    });
+  }
+
+  const [items, total] = await this.prisma.$transaction([
+    this.prisma.ordonance.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+    this.prisma.ordonance.count({ where }),
+  ]);
+
+  return {
+    items,
+    meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+  };
+}
+
   async update(id: number, dto: UpdateOrdonanceDto): Promise<Ordonance> {
     const ord = await this.prisma.ordonance.findUnique({ where: { ordonanceId: id } });
     if (!ord) throw new NotFoundException('Ordonnance introuvable.');

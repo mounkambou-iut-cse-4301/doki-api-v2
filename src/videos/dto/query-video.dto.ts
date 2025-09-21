@@ -4,6 +4,10 @@ import { Type } from 'class-transformer';
 import { IsOptional, IsInt, Min, IsString, IsDateString, MaxLength } from 'class-validator';
 
 export class QueryVideoDto {
+   @ApiPropertyOptional({ description: 'Recherche (titre, description, catégorie)' })
+  @IsOptional() @IsString()
+  q?: string;
+
   @ApiPropertyOptional({ description: 'Filtrer par médecin (ID)' })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   medecinId?: number;

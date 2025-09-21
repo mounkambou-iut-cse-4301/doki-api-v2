@@ -2,6 +2,10 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString } from 'class-validator';
 
 export class OrdonanceFilterDto {
+
+      @ApiPropertyOptional({ description: 'Recherche (durée traitement, commentaire, noms liés)' })
+      @IsOptional() @IsString()
+      q?: string;
     @ApiPropertyOptional({ description: 'ID du médecin' })
     @IsOptional()
     @IsInt()

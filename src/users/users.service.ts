@@ -340,8 +340,8 @@ async findAll(query: QueryUserDto) {
         where,
         include: {
           speciality: true,
-          feedbacksMed: true,
-          feedbacksPat: true,
+          // feedbacksMed: true,
+          // feedbacksPat: true,
           plannings: true,
         },
         skip,
@@ -351,7 +351,32 @@ async findAll(query: QueryUserDto) {
       this.prisma.user.count({ where }),
     ]);
 
-    const items1 = items.map(({ password, ...safe }) => safe);
+    // === Agrégat des notes pour les médecins (avg + count) ===
+    const medecinIds = items
+      .filter(u => u.userType === UserType.MEDECIN)
+      .map(u => u.userId);
+
+    let ratingMap = new Map<number, { average: number; count: number }>();
+    if (medecinIds.length) {
+      const rows = await this.prisma.feedback.groupBy({
+        by: ['medecinId'],
+        where: { medecinId: { in: medecinIds } },
+        _avg: { note: true },
+        _count: { _all: true },
+      });
+      ratingMap = new Map(
+        rows.map(r => [r.medecinId, { average: r._avg.note ?? 0, count: r._count._all }]),
+      );
+    }
+
+    // enlever password + attacher le rating pour les médecins
+    const items1 = items.map(({ password, ...safe }) => ({
+      ...safe,
+      feedbackRating:
+        safe.userType === UserType.MEDECIN
+          ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
+          : null,
+    }));
 
     return {
       items1,
@@ -366,42 +391,59 @@ async findAll(query: QueryUserDto) {
   }
 }
 
+
   // 5. GET ONE USER BY ID AVEC RELATIONS
   async findOne(id: number) {
-    try {
-      const user = await this.prisma.user.findUnique({
-        where: { userId: id },
-        include: {
-          speciality: true,
-          feedbacksMed: true,
-          feedbacksPat: true,
-          favoritesMed: true,
-          favoritesPat: true,
-          videos: true,
-          reservationsM: true,
-          reservationsP: true,
-          plannings: true,
-          abonnementsM: {select:{ abonnementId: true, debutDate: true, endDate: true, numberOfTimePlanReservation: true, status:true,amount:true, transactionId:true, createdAt: true,medecin: {select: {userId: true, firstName: true, lastName: true, email: true}}, patient: {select: {userId: true, firstName: true, lastName: true, email: true}}}},
-          abonnementsP: {select:{ abonnementId: true, debutDate: true, endDate: true, numberOfTimePlanReservation: true, status:true,amount:true, transactionId:true, createdAt: true,medecin: {select: {userId: true, firstName: true, lastName: true, email: true}}, patient: {select: {userId: true, firstName: true, lastName: true, email: true}}}},
-          ordonnancesM: true,
-          ordonnancesP: true,
-          soldes: true,
-        },
-      });
-      if (!user) {
-        throw new NotFoundException({
-          message: `Utilisateur d'ID ${id} introuvable.`,
-          messageE: `User with ID ${id} not found.`,
-        });
-      }
-      const { password, ...user1 } = user;
-      return user1;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new BadRequestException({
-        message: `Erreur récupération : ${error.message}`,
-        messageE: `Error fetching user: ${error.message}`,
+  try {
+    const user = await this.prisma.user.findUnique({
+      where: { userId: id },
+      include: {
+        speciality: true,
+        feedbacksMed: true,
+        feedbacksPat: true,
+        favoritesMed: true,
+        favoritesPat: true,
+        videos: true,
+        reservationsM: true,
+        reservationsP: true,
+        plannings: true,
+        abonnementsM: {select:{ abonnementId: true, debutDate: true, endDate: true, numberOfTimePlanReservation: true, status:true,amount:true, transactionId:true, createdAt: true,medecin: {select: {userId: true, firstName: true, lastName: true, email: true}}, patient: {select: {userId: true, firstName: true, lastName: true, email: true}}}},
+        abonnementsP: {select:{ abonnementId: true, debutDate: true, endDate: true, numberOfTimePlanReservation: true, status:true,amount:true, transactionId:true, createdAt: true,medecin: {select: {userId: true, firstName: true, lastName: true, email: true}}, patient: {select: {userId: true, firstName: true, lastName: true, email: true}}}},
+        ordonnancesM: true,
+        ordonnancesP: true,
+        soldes: true,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException({
+        message: `Utilisateur d'ID ${id} introuvable.`,
+        messageE: `User with ID ${id} not found.`,
       });
     }
+
+    // Calcul de la note si médecin
+    let feedbackRating: { average: number; count: number } | null = null;
+    if (user.userType === UserType.MEDECIN) {
+      const agg = await this.prisma.feedback.aggregate({
+        where: { medecinId: id },
+        _avg: { note: true },
+        _count: { _all: true },
+      });
+      feedbackRating = {
+        average: agg._avg.note ?? 0,
+        count: agg._count._all,
+      };
+    }
+
+    const { password, ...user1 } = user;
+    return { ...user1, feedbackRating };
+  } catch (error) {
+    if (error instanceof NotFoundException) throw error;
+    throw new BadRequestException({
+      message: `Erreur récupération : ${error.message}`,
+      messageE: `Error fetching user: ${error.message}`,
+    });
   }
+}
+
 }

@@ -340,9 +340,74 @@ async findAll(query: QueryUserDto) {
         where,
         include: {
           speciality: true,
-          // feedbacksMed: true,
-          // feedbacksPat: true,
-          plannings: true,
+
+          // Derniers 3 feedbacks (côté médecin / côté patient)
+          feedbacksMed: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+          feedbacksPat: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+
+          // Planning unique (le plus récent)
+          plannings: { take: 1, orderBy: { createdAt: 'desc' } },
+
+          // Solde unique (le plus récent)
+          soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
+
+          // 3 derniers pour le médecin
+          reservationsM: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              reservationId: true,
+              date: true,
+              hour: true,
+              status: true,
+              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+          ordonnancesM: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              ordonanceId: true,
+              dureeTraitement: true,
+              createdAt: true,
+              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+          abonnementsM: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              abonnementId: true,
+              debutDate: true,
+              endDate: true,
+              status: true,
+              amount: true,
+              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+          videos: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              videoId: true,
+              title: true,
+              path: true,
+              category: true,
+              createdAt: true,
+            },
+          },
         },
         skip,
         take: limit,
@@ -351,11 +416,8 @@ async findAll(query: QueryUserDto) {
       this.prisma.user.count({ where }),
     ]);
 
-    // === Agrégat des notes pour les médecins (avg + count) ===
-    const medecinIds = items
-      .filter(u => u.userType === UserType.MEDECIN)
-      .map(u => u.userId);
-
+    // Agrégat des notes pour les médecins
+    const medecinIds = items.filter(u => u.userType === UserType.MEDECIN).map(u => u.userId);
     let ratingMap = new Map<number, { average: number; count: number }>();
     if (medecinIds.length) {
       const rows = await this.prisma.feedback.groupBy({
@@ -369,14 +431,37 @@ async findAll(query: QueryUserDto) {
       );
     }
 
-    // enlever password + attacher le rating pour les médecins
-    const items1 = items.map(({ password, ...safe }) => ({
-      ...safe,
-      feedbackRating:
-        safe.userType === UserType.MEDECIN
-          ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
-          : null,
-    }));
+    // Retirer password + transformer collections -> objets/derniers 3
+    const items1 = items.map(
+      ({
+        password,
+        plannings,
+        soldes,
+        feedbacksMed,
+        feedbacksPat,
+        reservationsM,
+        ordonnancesM,
+        abonnementsM,
+        videos,
+        ...safe
+      }) => ({
+        ...safe,
+        planning: plannings?.[0] ?? null,
+        solde: soldes?.[0] ?? null,
+        feedbackRating:
+          safe.userType === UserType.MEDECIN
+            ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
+            : null,
+        lastFeedbacks:
+          safe.userType === UserType.MEDECIN
+            ? feedbacksMed
+            : feedbacksPat,
+        lastReservations: reservationsM ?? [],
+        lastOrdonnances: ordonnancesM ?? [],
+        lastAbonnements: abonnementsM ?? [],
+        lastVideos: videos ?? [],
+      }),
+    );
 
     return {
       items1,
@@ -392,28 +477,106 @@ async findAll(query: QueryUserDto) {
 }
 
 
+
+
   // 5. GET ONE USER BY ID AVEC RELATIONS
-  async findOne(id: number) {
+async findOne(id: number) {
   try {
     const user = await this.prisma.user.findUnique({
       where: { userId: id },
       include: {
         speciality: true,
-        feedbacksMed: true,
-        feedbacksPat: true,
         favoritesMed: true,
         favoritesPat: true,
-        videos: true,
-        reservationsM: true,
+
+        // 3 derniers contenus côté médecin
+        videos: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: { videoId: true, title: true, path: true, category: true, createdAt: true },
+        },
+        reservationsM: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            reservationId: true,
+            date: true,
+            hour: true,
+            status: true,
+            patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          },
+        },
+        ordonnancesM: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            ordonanceId: true,
+            dureeTraitement: true,
+            createdAt: true,
+            patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          },
+        },
+        abonnementsM: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            abonnementId: true,
+            debutDate: true,
+            endDate: true,
+            numberOfTimePlanReservation: true,
+            status: true,
+            amount: true,
+            transactionId: true,
+            createdAt: true,
+            medecin: { select: { userId: true, firstName: true, lastName: true, email: true } },
+            patient: { select: { userId: true, firstName: true, lastName: true, email: true } },
+          },
+        },
+        abonnementsP: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            abonnementId: true,
+            debutDate: true,
+            endDate: true,
+            numberOfTimePlanReservation: true,
+            status: true,
+            amount: true,
+            transactionId: true,
+            createdAt: true,
+            medecin: { select: { userId: true, firstName: true, lastName: true, email: true } },
+            patient: { select: { userId: true, firstName: true, lastName: true, email: true } },
+          },
+        },
+
+        // Feedbacks : 3 derniers
+        feedbacksMed: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          },
+        },
+        feedbacksPat: {
+          take: 3,
+          orderBy: { createdAt: 'asc' }, // ou 'desc' selon ton besoin
+          include: {
+            medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          },
+        },
+
+        // Un seul planning (objet)
+        plannings: { take: 1, orderBy: { createdAt: 'desc' } },
+
+        // Un seul solde (objet)
+        soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
+
+        // optionnels (si tu veux les conserver)
         reservationsP: true,
-        plannings: true,
-        abonnementsM: {select:{ abonnementId: true, debutDate: true, endDate: true, numberOfTimePlanReservation: true, status:true,amount:true, transactionId:true, createdAt: true,medecin: {select: {userId: true, firstName: true, lastName: true, email: true}}, patient: {select: {userId: true, firstName: true, lastName: true, email: true}}}},
-        abonnementsP: {select:{ abonnementId: true, debutDate: true, endDate: true, numberOfTimePlanReservation: true, status:true,amount:true, transactionId:true, createdAt: true,medecin: {select: {userId: true, firstName: true, lastName: true, email: true}}, patient: {select: {userId: true, firstName: true, lastName: true, email: true}}}},
-        ordonnancesM: true,
         ordonnancesP: true,
-        soldes: true,
       },
     });
+
     if (!user) {
       throw new NotFoundException({
         message: `Utilisateur d'ID ${id} introuvable.`,
@@ -421,7 +584,7 @@ async findAll(query: QueryUserDto) {
       });
     }
 
-    // Calcul de la note si médecin
+    // Note moyenne + nb d’avis si médecin
     let feedbackRating: { average: number; count: number } | null = null;
     if (user.userType === UserType.MEDECIN) {
       const agg = await this.prisma.feedback.aggregate({
@@ -435,8 +598,30 @@ async findAll(query: QueryUserDto) {
       };
     }
 
-    const { password, ...user1 } = user;
-    return { ...user1, feedbackRating };
+    const {
+      password,
+      plannings,
+      soldes,
+      feedbacksMed,
+      feedbacksPat,
+      reservationsM,
+      ordonnancesM,
+      abonnementsM,
+      videos,
+      ...user1
+    } = user;
+
+    return {
+      ...user1,
+      planning: plannings?.[0] ?? null,
+      solde: soldes?.[0] ?? null,
+      feedbackRating,
+      lastFeedbacks: user.userType === UserType.MEDECIN ? feedbacksMed : feedbacksPat,
+      lastReservations: reservationsM ?? [],
+      lastOrdonnances: ordonnancesM ?? [],
+      lastAbonnements: abonnementsM ?? [],
+      lastVideos: videos ?? [],
+    };
   } catch (error) {
     if (error instanceof NotFoundException) throw error;
     throw new BadRequestException({
@@ -445,5 +630,6 @@ async findAll(query: QueryUserDto) {
     });
   }
 }
+
 
 }

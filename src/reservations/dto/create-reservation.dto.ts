@@ -53,7 +53,7 @@ export class CreateReservationDto {
   @IsOptional() @IsString()
   location?: string;
 
-  @ApiProperty({ description: 'Montant de la transaction', example: 50.00 })
-  @IsNotEmpty() @IsNumber()
-  amount: number;
+  @ApiProperty({ description: 'ID de la spécialité' })
+  @IsNotEmpty() @IsInt()
+  specialityId: number;
 }

@@ -1,30 +1,33 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { QType } from './create-fiche.dto';
 
-class FicheQuestionUpsert {
-  @ApiPropertyOptional({ description: 'Présent si update' })
-  @IsOptional() @IsInt() @Min(1)
-  ficheQuestionId?: number;
+class OptionUpsert {
+  @ApiPropertyOptional() @IsOptional() @IsString() label?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() value?: string;
+}
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
-  label?: string;
+class QuestionUpsert {
+  @ApiPropertyOptional({ description: 'Si présent => conserve cet id' })
+  @IsOptional() @IsString() id?: string;
 
-  @ApiPropertyOptional() @IsOptional()
-  orderIndex?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() label?: string;
+  @ApiPropertyOptional({ enum: QType }) @IsOptional() @IsEnum(QType) type?: QType;
+  @ApiPropertyOptional() @IsOptional() order?: number;
+
+  // si fourni => remplacement intégral des options pour cette question
+  @ApiPropertyOptional({ type: [OptionUpsert] })
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => OptionUpsert)
+  options?: OptionUpsert[];
 }
 
 export class UpdateFicheDto {
-  @ApiPropertyOptional() @IsOptional() @IsString()
-  title?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
-  description?: string;
-
-  @ApiPropertyOptional() @IsOptional() @IsBoolean()
-  isActive?: boolean;
-
-  @ApiPropertyOptional({ type: [FicheQuestionUpsert], description: 'Liste finale des questions (upsert + suppressions implicites)' })
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => FicheQuestionUpsert)
-  questions?: FicheQuestionUpsert[];
+  @ApiPropertyOptional({ type: [QuestionUpsert] })
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => QuestionUpsert)
+  questions?: QuestionUpsert[];
 }

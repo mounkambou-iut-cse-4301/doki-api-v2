@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { IsInt, Min, IsOptional } from 'class-validator';
 
 export class QueryConversationDetailDto {
-  @ApiProperty({ description: 'ID du lecteur (participant de la conversation)' })
+  @ApiProperty({ description: 'ID du lecteur' })
   @Type(() => Number) @IsInt() @Min(1)
   readerId: number;
 

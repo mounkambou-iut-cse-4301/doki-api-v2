@@ -1,6 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
-
 import { MessageriesService } from './messageries.service';
 import { SendDmMessageDto } from './dto/send-dm-message.dto';
 import { QueryConversationsDto } from './dto/query-conversations.dto';
@@ -59,12 +58,12 @@ export class MessageriesController {
   }
 
   @Get('unread-overview')
-  @ApiOperation({ summary: 'Récapitulatif des non-lus (DM + cas difficiles) pour un utilisateur' })
+  @ApiOperation({ summary: 'Récapitulatif des non-lus (DM) pour un utilisateur' })
   unreadOverview(@Query('forUserId') forUserId: string) {
     return this.svc.getUnreadOverview(Number(forUserId));
   }
 
-  /* ---------- Fiches : ENVOI / RÉPONSE dans les DM ---------- */
+  /* ---------- Fiches : ENVOI / RÉPONSE ---------- */
   @Post('fiches/requests')
   @ApiOperation({ summary: 'Envoyer une DEMANDE de fiche (dans un DM, médecin → patient)' })
   @ApiBody({ schema: { example: { conversationId: 5, ficheId: 1, senderId: 2 } } })
@@ -79,8 +78,8 @@ export class MessageriesController {
       example: {
         conversationId: 5, ficheId: 1, senderId: 7,
         answers: [
-          { questionId: 10, valueText: 'Depuis 3 jours' },
-          { questionId: 11, valueText: 'Lumière, écrans' }
+          { questionId: "q-uuid-1", optionValue: "1_jour" },
+          { questionId: "q-uuid-2", valueText: "Fièvre 38.5" }
         ],
         requestMessageId: 42
       }
@@ -91,8 +90,16 @@ export class MessageriesController {
   }
 
   @Get('fiches/responses/by-conversation/:conversationId')
-  @ApiOperation({ summary: 'Lister les réponses de fiches pour une conversation' })
+  @ApiOperation({ summary: 'Lister les réponses (stockées JSON) pour une conversation' })
   listFicheResponsesByConversation(@Param('conversationId') conversationId: string) {
     return this.svc.listFicheResponsesByConversation(Number(conversationId));
   }
+
+@Get('fiches/summary/by-conversation/:conversationId')
+@ApiOperation({ summary: 'Résumé automatique des fiches structurées (MISTIDRACS ou libres)' })
+async getConversationSummary(@Param('conversationId') conversationId: string) {
+  return this.svc.generateConversationSummary(Number(conversationId));
+}
+
+
 }

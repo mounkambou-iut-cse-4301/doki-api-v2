@@ -1,9 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -15,6 +10,7 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
+/* ========== Enums existants ========== */
 enum Sex {
   MALE
   FEMALE
@@ -54,18 +50,17 @@ enum TransactionType {
   RESERVATION
   ABONNEMENT
 }
+
 enum MessageKind {
   TEXT
   IMAGE
   FILE
   SYSTEM
-  FICHE_REQUEST     // DM uniquement
-  FICHE_RESPONSE    // DM uniquement
+  FICHE_REQUEST   // DM uniquement (message de demande)
+  FICHE_RESPONSE  // DM uniquement (message d'accusé / lien vers la réponse JSON stockée dans Fiche)
 }
 
-/* =========================
-   =======  MODELS  ========
-   ========================= */
+/* ========== MODELS ========== */
 
 model User {
   userId        Int      @id @default(autoincrement())
@@ -123,13 +118,10 @@ model User {
   /* Cas difficiles (curseurs de lecture) */
   casReads CasReadState[]
 
-  /* Fiches : back-relations nommées pour lever toute ambiguïté */
-  fichesCreees             FicheStructuree[] @relation("FicheStructureeCreator")
-  fichesReponsesEnvoyees   FicheReponse[]    @relation("FicheReponseSender")
-  fichesReponsesPourUser   FicheReponse[]    @relation("FicheReponseSubmittedFor")
-
   /* Cas difficiles créés */
   casCreees                CasDifficile[]    @relation("CasDifficileCreator")
+
+  Fiche Fiche[]
 }
 
 model Conversation {
@@ -147,7 +139,6 @@ model Conversation {
   @@unique([medecinId, patientId])
   @@index([medecinId])
   @@index([patientId])
-  FicheReponse FicheReponse[]
 }
 
 model Message {
@@ -159,11 +150,10 @@ model Message {
   receiverId      Int?
   content         String?
   meta            Json?
-ficheId         Int?         // FICHE_REQUEST
-ficheReponseId  Int?         @unique // FICHE_RESPONSE
-isRead          Boolean      @default(false)
-isAnonymous     Boolean      @default(false)
-createdAt       DateTime     @default(now())
+  ficheId         Int?         // pointer vers Fiche pour les DEMANDES (FICHE_REQUEST)
+  isRead          Boolean      @default(false)
+  isAnonymous     Boolean      @default(false)
+  createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
   conversation   Conversation?    @relation(fields: [conversationId], references: [conversationId])
@@ -172,20 +162,15 @@ createdAt       DateTime     @default(now())
   sender         User             @relation("MessageSender",   fields: [senderId],   references: [userId])
   receiver       User?            @relation("MessageReceiver", fields: [receiverId], references: [userId])
 
-  // Fiche request (1 fiche ↔ * messages)
-  fiche          FicheStructuree? @relation("FicheRequestMessages", fields: [ficheId], references: [ficheId])
-
-  // Fiche response (1–1 via FK côté Message)
-  ficheReponse   FicheReponse?    @relation("MessageFicheReponse", fields: [ficheReponseId], references: [ficheReponseId])
+  fiche          Fiche?           @relation(fields: [ficheId], references: [ficheId])
 
   @@index([conversationId, createdAt])
   @@index([receiverId, isRead])
   @@index([casId, createdAt])
   @@index([ficheId])
-  @@index([ficheReponseId])
 }
 
-/* ===== Cas difficiles (ouverts médecins) ===== */
+/* ===== Cas difficiles ===== */
 model CasDifficile {
   casId       Int      @id @default(autoincrement())
   name        String
@@ -213,78 +198,30 @@ model CasReadState {
   @@index([userId])
 }
 
-/* ===== Fiches structurées simples (DM only) ===== */
-model FicheStructuree {
-  ficheId      Int      @id @default(autoincrement())
-  title        String
-  description  String?
-  createdBy    Int
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/* ===== Nouvelle table unique Fiche (questions + réponses en JSON) ===== */
+model Fiche {
+  ficheId     Int      @id @default(autoincrement())
+  title       String
+  description String?
+  createdBy   Int
+  isActive    Boolean  @default(true)
 
-  creator   User             @relation("FicheStructureeCreator", fields: [createdBy], references: [userId])
-  questions FicheQuestion[]
-  reponses  FicheReponse[]
+  // Définition
+  questions   Json     // Array<Question>
 
-  // back de Message.fiche (relation nommée)
-  requests  Message[]        @relation("FicheRequestMessages")
+  // Collecte des réponses (append-only)
+  responses   Json     // Array<Response>
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator     User     @relation(fields: [createdBy], references: [userId])
+  requests    Message[] // messages FICHE_REQUEST pointant vers cette Fiche
 
   @@index([createdBy, isActive])
 }
 
-model FicheQuestion {
-  ficheQuestionId Int      @id @default(autoincrement())
-  ficheId         Int
-  label           String
-  orderIndex      Int      @default(0)
-
-  fiche FicheStructuree @relation(fields: [ficheId], references: [ficheId])
-
-  // back vers les items de réponses (optionnel mais on le nomme pour lever toute ambiguïté)
-  items FicheReponseItem[] @relation("QuestionItems")
-
-  @@index([ficheId, orderIndex])
-}
-
-model FicheReponse {
-  ficheReponseId     Int      @id @default(autoincrement())
-  ficheId            Int
-  conversationId     Int
-  senderId           Int
-  submittedForUserId Int?
-  submittedAt        DateTime @default(now())
-
-  fiche        FicheStructuree @relation(fields: [ficheId], references: [ficheId])
-  conversation Conversation     @relation(fields: [conversationId], references: [conversationId])
-  // 2 relations vers User => NOMMER les deux
-  sender       User            @relation("FicheReponseSender",        fields: [senderId],           references: [userId])
-  submittedFor User?           @relation("FicheReponseSubmittedFor",  fields: [submittedForUserId], references: [userId])
-
-  // 1–* vers items (relation nommée)
-  items        FicheReponseItem[] @relation("ReponseItems")
-
-  // 1–1 avec Message via FK côté Message → on nomme la relation pair
-  message      Message?        @relation("MessageFicheReponse")
-
-  @@index([conversationId])
-  @@index([ficheId, submittedAt])
-}
-
-model FicheReponseItem {
-  ficheReponseItemId Int   @id @default(autoincrement())
-  ficheReponseId     Int
-  questionId         Int
-  valueText          String
-
-  // côtés nommés pour éviter toute ambiguïté
-  reponse  FicheReponse  @relation("ReponseItems", fields: [ficheReponseId], references: [ficheReponseId])
-  question FicheQuestion @relation("QuestionItems", fields: [questionId], references: [ficheQuestionId])
-
-  @@unique([ficheReponseId, questionId])
-}
-
-/* ===== Reste de tes modèles “métier” inchangés (copie corrigée) ===== */
+/* ===== Reste de tes modèles “métier” inchangés ===== */
 
 model Notification {
   notificationId Int      @id @default(autoincrement())

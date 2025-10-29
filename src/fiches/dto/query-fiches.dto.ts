@@ -15,10 +15,6 @@ export class QueryFichesDto {
   @IsOptional() @Type(() => Boolean) @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ description: 'Inclure les questions dans la réponse', default: true })
-  @IsOptional() @Type(() => Boolean) @IsBoolean()
-  includeQuestions?: boolean = true;
-
   @ApiPropertyOptional({ default: 1 })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page?: number = 1;

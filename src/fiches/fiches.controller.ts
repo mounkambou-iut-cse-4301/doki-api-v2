@@ -3,6 +3,7 @@ import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FichesService } from './fiches.service';
 import { CreateFicheDto } from './dto/create-fiche.dto';
 import { UpdateFicheDto } from './dto/update-fiche.dto';
+import { QueryFichesDto } from './dto/query-fiches.dto';
 
 @ApiTags('fiches (CRUD)')
 @Controller('fiches')
@@ -33,7 +34,7 @@ export class FichesController {
 
   @Get()
   @ApiOperation({ summary: 'Lister les fiches (pagination + recherche titre/description)' })
-  list(@Query() query: any) {
+  list(@Query() query: QueryFichesDto) {
     return this.svc.listFiches(query);
   }
 

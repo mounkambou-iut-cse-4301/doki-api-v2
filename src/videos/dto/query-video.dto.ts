@@ -1,10 +1,10 @@
 // src/videos/dto/query-video.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsInt, Min, IsString, IsDateString, MaxLength } from 'class-validator';
+import { IsOptional, IsInt, Min, IsString, IsDateString } from 'class-validator';
 
 export class QueryVideoDto {
-   @ApiPropertyOptional({ description: 'Recherche (titre, description, catégorie)' })
+  @ApiPropertyOptional({ description: 'Recherche (titre, description)' })
   @IsOptional() @IsString()
   q?: string;
 
@@ -12,9 +12,9 @@ export class QueryVideoDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   medecinId?: number;
 
-  @ApiPropertyOptional({ description: 'Filtrer par catégorie (insensible à la casse)' })
-  @IsOptional() @IsString() @MaxLength(100)
-  category?: string;
+  @ApiPropertyOptional({ description: 'Filtrer par catégorie (ID)' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  categoryId?: number;
 
   @ApiPropertyOptional({ description: 'Filtrer par date (YYYY-MM-DD) sur createdAt (journée entière)' })
   @IsOptional() @IsDateString()

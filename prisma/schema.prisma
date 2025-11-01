@@ -276,11 +276,16 @@ model Video {
   title       String
   path        String
   description String?
-  category    String?
   medecinId   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   medecin User @relation(fields: [medecinId], references: [userId])
+
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([medecinId])
+  @@index([categoryId])
 }
 
 model Planning {
@@ -426,6 +431,9 @@ model Category {
   updatedAt   DateTime @updatedAt
   formations  FormationContinue[]
   Lesson      Lesson[]
+
+  // ⬇️ back-relation vers Video
+  videos      Video[]
 
   @@index([name])
   @@map("categories")

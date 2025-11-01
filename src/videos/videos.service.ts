@@ -4,12 +4,12 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { QueryVideoDto } from './dto/query-video.dto';
 
-// Helpers pour gérer la journée entière en Africa/Douala
-function dayRangeInTZ(yyyyMmDd: string, tz = 'Africa/Douala') {
+// Journée entière UTC-agnostic pour Africa/Douala (ok pour range simple)
+function dayRangeInTZ(yyyyMmDd: string) {
   const [y, m, d] = yyyyMmDd.split('-').map(Number);
-  const startLocal = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
-  const endLocal = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0));
-  return { gte: startLocal, lt: endLocal };
+  const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+  const end   = new Date(Date.UTC(y, m - 1, d + 1, 0, 0, 0));
+  return { gte: start, lt: end };
 }
 
 @Injectable()
@@ -28,13 +28,24 @@ export class VideosService {
         });
       }
 
+      // Vérifier la catégorie si fournie
+      if (dto.categoryId) {
+        const cat = await this.prisma.category.findUnique({ where: { categoryId: dto.categoryId } });
+        if (!cat) {
+          throw new NotFoundException({
+            message: `Catégorie ${dto.categoryId} introuvable.`,
+            messageE: `Category ${dto.categoryId} not found.`,
+          });
+        }
+      }
+
       const video = await this.prisma.video.create({
         data: {
           title: dto.title,
           path: dto.path,
           description: dto.description,
-          category: dto.category,
           medecinId: dto.medecinId,
+          categoryId: dto.categoryId ?? null,
         },
       });
 
@@ -73,14 +84,24 @@ export class VideosService {
         }
       }
 
+      if (dto.categoryId) {
+        const cat = await this.prisma.category.findUnique({ where: { categoryId: dto.categoryId } });
+        if (!cat) {
+          throw new NotFoundException({
+            message: `Catégorie ${dto.categoryId} introuvable.`,
+            messageE: `Category ${dto.categoryId} not found.`,
+          });
+        }
+      }
+
       const video = await this.prisma.video.update({
         where: { videoId: id },
         data: {
           title: dto.title,
           path: dto.path,
           description: dto.description,
-          category: dto.category,
           medecinId: dto.medecinId,
+          categoryId: dto.categoryId ?? null,
         },
       });
 
@@ -98,7 +119,7 @@ export class VideosService {
     }
   }
 
-  /** 3) Liste paginée + filtres (medecinId, category, date) */
+  /** 3) Liste paginée + filtres (medecinId, categoryId, date) */
   async findAll(query: QueryVideoDto) {
     try {
       const page  = query.page  != null ? Number(query.page)  : 1;
@@ -113,17 +134,15 @@ export class VideosService {
 
       const where: any = {};
       if (query.medecinId) where.medecinId = Number(query.medecinId);
-      if (query.category)  where.category  = { equals: query.category, mode: 'insensitive' };
-      if (query.date)      where.createdAt = dayRangeInTZ(query.date);
+      if (query.categoryId) where.categoryId = Number(query.categoryId);
+      if (query.date) where.createdAt = dayRangeInTZ(query.date);
       if (query.q && query.q.trim()) {
-  const q = query.q.trim();
-  where.OR = [
-    { title:       { contains: q } },
-    { description: { contains: q } },
-    { category:    { contains: q } },
-  ];
-}
-
+        const q = query.q.trim();
+        where.OR = [
+          { title:       { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+        ];
+      }
 
       const [items, total] = await this.prisma.$transaction([
         this.prisma.video.findMany({
@@ -136,8 +155,9 @@ export class VideosService {
             title: true,
             path: true,
             description: true,
-            category: true,
             medecinId: true,
+            categoryId: true,
+            category: { select: { categoryId: true, name: true } },
             createdAt: true,
           },
         }),
@@ -159,13 +179,14 @@ export class VideosService {
     }
   }
 
-  /** 4) Détail vidéo + données du médecin */
+  /** 4) Détail vidéo + médecin + catégorie */
   async findOne(id: number) {
     try {
       const video = await this.prisma.video.findUnique({
         where: { videoId: id },
         include: {
-          medecin: true,
+          medecin: { select: { userId: true, firstName: true, lastName: true } },
+          category: { select: { categoryId: true, name: true, description: true } },
         },
       });
       if (!video) {

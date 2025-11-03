@@ -24,3 +24,27 @@ export const uploadImageToCloudinary = async (
   }
   throw new Error('Format de fichier non supporté.');
 };
+
+/**
+ * Helper spécialisé vidéo (facultatif) :
+ * - Data URL base64 (video/*) ⇒ upload en 'video'
+ * - URL http(s) ⇒ retourne l’URL
+ * - sinon fallback sur uploadAnyToCloudinary
+ */
+export const uploadVideoToCloudinary = async (
+  data: string,
+  folder = 'videos'
+): Promise<string> => {
+  if (/^https?:\/\//i.test(data)) return data;
+
+  if (/^data:video\/.+;base64,/.test(data)) {
+    const res = await cloudinary.uploader.upload(data, {
+      folder,
+      resource_type: 'video', // force le type vidéo
+    });
+    return res.secure_url;
+  }
+
+  // fallback auto
+  throw new Error('Format de fichier non supporté.');
+};

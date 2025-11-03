@@ -1,7 +1,6 @@
-// src/videos/dto/query-video.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsOptional, IsInt, Min, IsString, IsDateString } from 'class-validator';
+import { IsOptional, IsInt, Min, IsString, IsDateString, MaxLength } from 'class-validator';
 
 export class QueryVideoDto {
   @ApiPropertyOptional({ description: 'Recherche (titre, description)' })
@@ -12,7 +11,7 @@ export class QueryVideoDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   medecinId?: number;
 
-  @ApiPropertyOptional({ description: 'Filtrer par catégorie (ID)' })
+  @ApiPropertyOptional({ description: 'Filtrer par catégorie (CategoryVideo.categoryId)' })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   categoryId?: number;
 

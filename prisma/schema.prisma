@@ -276,17 +276,28 @@ model Video {
   title       String
   path        String
   description String?
+  categoryId  Int?
   medecinId   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  medecin User @relation(fields: [medecinId], references: [userId])
 
-  categoryId Int?
-  category   Category? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull, onUpdate: Cascade)
+  medecin  User           @relation(fields: [medecinId], references: [userId])
+  category CategoryVideo? @relation(fields: [categoryId], references: [categoryId])
 
   @@index([medecinId])
   @@index([categoryId])
 }
+
+model CategoryVideo {
+  categoryId  Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  videos      Video[]
+}
+
 
 model Planning {
   planningId Int      @id @default(autoincrement())
@@ -431,9 +442,6 @@ model Category {
   updatedAt   DateTime @updatedAt
   formations  FormationContinue[]
   Lesson      Lesson[]
-
-  // ⬇️ back-relation vers Video
-  videos      Video[]
 
   @@index([name])
   @@map("categories")

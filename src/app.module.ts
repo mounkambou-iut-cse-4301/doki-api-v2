@@ -17,9 +17,10 @@ import { CategoriesModule } from './categories/categories.module';
 import { FormationsModule } from './formations/formations.module';
 import { FichesModule } from './fiches/fiches.module';
 import { CasDifficilesModule } from './cas-difficiles/cas-difficiles.module';
+import { CategoryVideosModule } from './category-videos/category-videos.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule],
 })
 export class AppModule {}

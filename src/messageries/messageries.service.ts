@@ -9,29 +9,88 @@ import { SendFicheRequestDto } from './dto/send-fiche-request.dto';
 import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
 import { QueryConversationDetailDto } from './dto/query-conversation-detail.dto';
 import { randomUUID } from 'crypto';
+import { bi, isValidExpoToken, sendExpoPush } from 'src/utils/expo-push';
+
 
 @Injectable()
 export class MessageriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /* ------------------ Helpers ------------------ */
+  // /* ------------------ Helpers ------------------ */
+  // private async getOrCreateConversation(medecinId: number, patientId: number) {
+  //   const [med, pat] = await Promise.all([
+  //     this.prisma.user.findUnique({ where: { userId: medecinId } }),
+  //     this.prisma.user.findUnique({ where: { userId: patientId } }),
+  //   ]);
+  //   if (!med || med.userType !== 'MEDECIN') {
+  //     throw new NotFoundException({ message: `Médecin ${medecinId} introuvable.` });
+  //   }
+  //   if (!pat || pat.userType !== 'PATIENT') {
+  //     throw new NotFoundException({ message: `Patient ${patientId} introuvable.` });
+  //   }
+  //   const existing = await this.prisma.conversation.findUnique({
+  //     where: { medecinId_patientId: { medecinId, patientId } },
+  //   });
+  //   if (existing) return existing;
+  //   return this.prisma.conversation.create({
+  //     data: { medecinId, patientId, lastMessageAt: new Date() },
+  //   });
+  // }
+
+  // /* ------------------ DM basiques ------------------ */
+  // async sendDmMessage(senderId: number, dto: SendDmMessageDto) {
+  //   if (senderId !== dto.medecinId && senderId !== dto.patientId) {
+  //     throw new ForbiddenException({ message: `Vous ne faites pas partie de cette conversation.` });
+  //   }
+  //   const hasText = !!dto.content && dto.content.trim().length > 0;
+  //   const hasMeta = dto.meta && Object.keys(dto.meta).length > 0;
+  //   if (!hasText && !hasMeta) {
+  //     throw new BadRequestException({ message: `Fournissez un message texte ou des métadonnées.` });
+  //   }
+
+  //   const conv = await this.getOrCreateConversation(dto.medecinId, dto.patientId);
+  //   const receiverId = senderId === dto.medecinId ? dto.patientId : dto.medecinId;
+
+  //   const created = await this.prisma.$transaction(async (tx) => {
+  //     const msg = await tx.message.create({
+  //       data: {
+  //         kind: hasMeta && !hasText ? 'SYSTEM' : 'TEXT',
+  //         conversationId: conv.conversationId,
+  //         senderId,
+  //         receiverId,
+  //         content: hasText ? dto.content!.trim() : undefined,
+  //         meta: hasMeta ? (dto.meta as any) : undefined,
+  //         isRead: false,
+  //       },
+  //     });
+  //     await tx.conversation.update({
+  //       where: { conversationId: conv.conversationId },
+  //       data: { lastMessageAt: new Date() },
+  //     });
+  //     return msg;
+  //   });
+
+  //   return { message: 'Message envoyé', item: created };
+  // }
+
   private async getOrCreateConversation(medecinId: number, patientId: number) {
     const [med, pat] = await Promise.all([
       this.prisma.user.findUnique({ where: { userId: medecinId } }),
       this.prisma.user.findUnique({ where: { userId: patientId } }),
     ]);
-    if (!med || med.userType !== 'MEDECIN') {
-      throw new NotFoundException({ message: `Médecin ${medecinId} introuvable.` });
-    }
-    if (!pat || pat.userType !== 'PATIENT') {
-      throw new NotFoundException({ message: `Patient ${patientId} introuvable.` });
-    }
+    if (!med || med.userType !== 'MEDECIN') throw new NotFoundException({ message: `Médecin ${medecinId} introuvable.` });
+    if (!pat || pat.userType !== 'PATIENT') throw new NotFoundException({ message: `Patient ${patientId} introuvable.` });
+
     const existing = await this.prisma.conversation.findUnique({
       where: { medecinId_patientId: { medecinId, patientId } },
     });
     if (existing) return existing;
-    return this.prisma.conversation.create({
-      data: { medecinId, patientId, lastMessageAt: new Date() },
+    return this.prisma.conversation.create({ data: { medecinId, patientId, lastMessageAt: new Date() } });
+  }
+
+  private async createNotification(userId: number, titleFr: string, titleEn: string, msgFr: string, msgEn: string) {
+    return this.prisma.notification.create({
+      data: { userId, title: bi(titleFr, titleEn), message: bi(msgFr, msgEn), isRead: false },
     });
   }
 
@@ -67,6 +126,41 @@ export class MessageriesService {
       });
       return msg;
     });
+
+    // 🔔 Push & Notification au destinataire
+    const [sender, receiver] = await Promise.all([
+      this.prisma.user.findUnique({ where: { userId: senderId } }),
+      this.prisma.user.findUnique({ where: { userId: receiverId } }),
+    ]);
+
+    const titleFr = 'Nouveau message';
+    const titleEn = 'New message';
+    const bodyFr = hasText ? dto.content!.trim() : 'Vous avez reçu un message.';
+    const bodyEn = hasText ? dto.content!.trim() : 'You received a message.';
+
+    // save Notification (destinataire)
+    if (receiver) {
+      void this.createNotification(
+        receiver.userId,
+        titleFr, titleEn,
+        `De ${sender?.firstName ?? ''} ${sender?.lastName ?? ''} — ${bodyFr}`,
+        `From ${sender?.firstName ?? ''} ${sender?.lastName ?? ''} — ${bodyEn}`,
+      ).catch(() => void 0);
+
+      // push Expo au destinataire si token valide
+      const token = receiver.expotoken;
+      if (isValidExpoToken(token)) {
+        void sendExpoPush({
+          to: token!,
+          sound: 'default',
+          title: bi(titleFr, titleEn),
+          body: bi(`De ${sender?.firstName ?? ''} ${sender?.lastName ?? ''}: ${bodyFr}`,
+                   `From ${sender?.firstName ?? ''} ${sender?.lastName ?? ''}: ${bodyEn}`),
+          data: { kind: 'DM', conversationId: conv.conversationId, messageId: created.messageId },
+          priority: 'high',
+        });
+      }
+    }
 
     return { message: 'Message envoyé', item: created };
   }

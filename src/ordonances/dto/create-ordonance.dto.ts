@@ -1,5 +1,6 @@
+// src/ordonances/dto/create-ordonance.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsArray, ValidateNested, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsArray, ValidateNested, IsString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TreatmentItemDto } from './treatment-item.dto';
 
@@ -15,6 +16,10 @@ export class CreateOrdonanceDto {
   @ApiProperty({ description: 'ID du patient' })
   @IsInt()
   patientId: number;
+
+  @ApiPropertyOptional({ description: "Nom de l'ordonnance (ex: Paludisme – Adulte)" })
+  @IsOptional() @IsString() @MaxLength(255)
+  name?: string;
 
   @ApiPropertyOptional({ description: 'Durée du traitement' })
   @IsOptional() @IsString()

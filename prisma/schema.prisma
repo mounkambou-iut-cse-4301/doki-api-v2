@@ -383,6 +383,7 @@ model Transaction {
 
 model Ordonance {
   ordonanceId     Int      @id @default(autoincrement())
+  name            String?  @db.VarChar(255)   // 👈 NEW
   dureeTraitement String?  @db.VarChar(100)
   traitement      Json?
   comment         String?
@@ -398,6 +399,16 @@ model Ordonance {
   reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
 
   Suivi Suivi[]
+}
+
+model ProtocoleOrdonance {
+  protocoleId Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(255)  // nom de la maladie (ex: paludisme)
+  description String?  @db.VarChar(500)
+  traitement  Json                           // array<TreatmentItem>
+  images      Json?                          // optionnel (schéma identique à Ordonance.images)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Suivi {

@@ -18,9 +18,10 @@ import { FormationsModule } from './formations/formations.module';
 import { FichesModule } from './fiches/fiches.module';
 import { CasDifficilesModule } from './cas-difficiles/cas-difficiles.module';
 import { CategoryVideosModule } from './category-videos/category-videos.module';
+import { ProtocolesOrdonanceModule } from './protocoles-ordonance/protocoles-ordonance.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule],
 })
 export class AppModule {}

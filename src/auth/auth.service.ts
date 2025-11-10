@@ -55,6 +55,14 @@ export class AuthService {
       const payload = { sub: user.userId, phone: user.phone, type: user.userType };
       const token = await this.jwt.signAsync(payload, { expiresIn: '365d' });
 
+      // sauvegarder le expotoken si c'est entree
+      if(dto.expotoken !=""){
+         this.prisma.user.update({
+        where: { userId: user.userId },
+        data: { expotoken: dto.expotoken },
+      });
+      }
+
       return {
         message: 'Connexion réussie.',
         messageE: 'Login successful.',

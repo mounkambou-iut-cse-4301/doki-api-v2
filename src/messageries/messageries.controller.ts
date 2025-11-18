@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MessageriesService } from './messageries.service';
 import { SendDmMessageDto } from './dto/send-dm-message.dto';
 import { QueryConversationsDto } from './dto/query-conversations.dto';
@@ -8,9 +8,13 @@ import { MarkConversationReadDto } from './dto/mark-conversation-read.dto';
 import { QueryConversationDetailDto } from './dto/query-conversation-detail.dto';
 import { SendFicheRequestDto } from './dto/send-fiche-request.dto';
 import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @ApiTags('messageries (DM)')
 @Controller('messageries')
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class MessageriesController {
   constructor(private readonly svc: MessageriesService) {}
 
@@ -90,9 +94,19 @@ export class MessageriesController {
   }
 
   @Get('fiches/responses/by-conversation/:conversationId')
-  @ApiOperation({ summary: 'Lister les réponses (stockées JSON) pour une conversation' })
+  @ApiOperation({ summary: 'Lister les réponses (stockées JSON) pour une conversation (items enrichis avec la définition de la question)' })
   listFicheResponsesByConversation(@Param('conversationId') conversationId: string) {
     return this.svc.listFicheResponsesByConversation(Number(conversationId));
+  }
+
+  // --- nouveau endpoint : toutes les questions d'une fiche + réponses pour la conversation ---
+  @Get('fiches/responses/by-conversation/:conversationId/fiches/:ficheId')
+  @ApiOperation({ summary: 'Récupérer toutes les questions d’une fiche et les réponses (pour une conversation donnée)' })
+  getFicheQuestionsAndResponses(
+    @Param('conversationId') conversationId: string,
+    @Param('ficheId') ficheId: string,
+  ) {
+    return this.svc.getFicheQuestionsAndResponses(Number(conversationId), Number(ficheId));
   }
 
 @Get('fiches/summary/by-conversation/:conversationId')

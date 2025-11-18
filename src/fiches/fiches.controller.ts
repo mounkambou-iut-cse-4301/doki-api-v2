@@ -1,12 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FichesService } from './fiches.service';
 import { CreateFicheDto } from './dto/create-fiche.dto';
 import { UpdateFicheDto } from './dto/update-fiche.dto';
 import { QueryFichesDto } from './dto/query-fiches.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @ApiTags('fiches (CRUD)')
 @Controller('fiches')
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class FichesController {
   constructor(private readonly svc: FichesService) {}
 

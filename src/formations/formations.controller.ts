@@ -8,13 +8,18 @@ import {
   Body,
   Patch,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { FormationsService } from './formations.service';
 import { CreateFormationDto } from './dto/create-formation.dto';
 import { UpdateFormationDto } from './dto/update-formation.dto';
-import { ApiQuery } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @Controller('formations-continues')
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class FormationsController {
   constructor(private readonly service: FormationsService) {}
 

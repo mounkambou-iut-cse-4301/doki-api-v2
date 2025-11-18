@@ -439,23 +439,147 @@ export class MessageriesService {
     return { response };
   }
 
-  async listFicheResponsesByConversation(conversationId: number) {
-    // scan JSON (filtre app)
-    const fiches = await this.prisma.fiche.findMany();
-    const out: any[] = [];
-    for (const f of fiches) {
-      const rs = (f.responses as any[] || []).filter(r => r.conversationId === conversationId)
-        .map(r => ({ ...r, ficheId: f.ficheId, title: f.title }));
-      out.push(...rs);
-    }
-    out.sort((a,b)=> (b.submittedAt?.localeCompare?.(a.submittedAt) ?? 0));
-    return { items: out };
-  }
+  // async listFicheResponsesByConversation(conversationId: number) {
+  //   // scan JSON (filtre app)
+  //   const fiches = await this.prisma.fiche.findMany();
+  //   const out: any[] = [];
+  //   for (const f of fiches) {
+  //     const rs = (f.responses as any[] || []).filter(r => r.conversationId === conversationId)
+  //       .map(r => ({ ...r, ficheId: f.ficheId, title: f.title }));
+  //     out.push(...rs);
+  //   }
+  //   out.sort((a,b)=> (b.submittedAt?.localeCompare?.(a.submittedAt) ?? 0));
+  //   return { items: out };
+  // }
 
   // =====================================
   // 🧠 Génération du résumé d'une conversation
   // =====================================
+// ------------------
+// 1) listFicheResponsesByConversation (mise à jour)
+// ------------------
+async listFicheResponsesByConversation(conversationId: number) {
+  if (!conversationId || isNaN(conversationId)) {
+    throw new BadRequestException('conversationId requis et doit être un entier');
+  }
 
+  // récupère toutes les fiches
+  const fiches = await this.prisma.fiche.findMany();
+
+  const out: any[] = [];
+
+  for (const f of fiches) {
+    const questions = (f.questions as any[]) || [];
+    const responses = (f.responses as any[]) || [];
+
+    // sélectionne les réponses qui appartiennent à la conversation
+    const forConv = responses
+      .filter(r => r.conversationId === conversationId)
+      .map(r => {
+        // enrichir chaque item avec la définition de la question
+        const enrichedItems = (r.items || []).map((it: any) => {
+          const q = questions.find(qx => qx.id === it.questionId) || null;
+          return {
+            questionId: it.questionId,
+            optionValue: it.optionValue ?? null,
+            valueText: it.valueText ?? null,
+            // définition complète de la question (label, type, options, order, etc.)
+            question: q,
+          };
+        });
+
+        return {
+          ficheId: f.ficheId,
+          ficheTitle: f.title,
+          responseId: r.id,
+          conversationId: r.conversationId,
+          senderId: r.senderId,
+          submittedForUserId: r.submittedForUserId ?? null,
+          submittedAt: r.submittedAt ?? null,
+          items: enrichedItems,
+        };
+      });
+
+    out.push(...forConv);
+  }
+
+  // tri descendant par submittedAt (si présent)
+  out.sort((a, b) => {
+    const ta = a.submittedAt ? String(a.submittedAt) : '';
+    const tb = b.submittedAt ? String(b.submittedAt) : '';
+    return tb.localeCompare(ta);
+  });
+
+  return { items: out };
+}
+
+// ------------------
+// 2) getFicheQuestionsAndResponses (nouveau)
+// ------------------
+/**
+ * Retourne toutes les questions de la fiche et, pour chaque question,
+ * toutes les réponses issues de cette fiche appartenant à la conversation.
+ *
+ * Format renvoyé:
+ * {
+ *   ficheId,
+ *   ficheTitle,
+ *   questions: [
+ *     {
+ *       question: { id, label, type, order, options?, ... },
+ *       responses: [
+ *         { responseId, submittedAt, senderId, submittedForUserId, valueText?, optionValue? }
+ *       ]
+ *     }, ...
+ *   ]
+ * }
+ */
+async getFicheQuestionsAndResponses(conversationId: number, ficheId: number) {
+  if (!conversationId || isNaN(conversationId) || !ficheId || isNaN(ficheId)) {
+    throw new BadRequestException('conversationId et ficheId requis et doivent être des entiers');
+  }
+
+  const fiche = await this.prisma.fiche.findUnique({ where: { ficheId } });
+  if (!fiche) {
+    // Tu peux préférer lancer NotFoundException; j'opte pour retourner items: {} vide pour usage client plus simple.
+    // return { ficheId, ficheTitle: null, questions: [] };
+    throw new NotFoundException(`Fiche ${ficheId} introuvable`);
+  }
+
+  const questions = (fiche.questions as any[]) || [];
+  const responses = (fiche.responses as any[]) || [];
+
+  // Garder uniquement réponses appartenant à la conversation
+  const responsesForConv = responses.filter(r => r.conversationId === conversationId);
+
+  // Pour chaque question de la fiche, retrouver les réponses qui contiennent cette question
+  const questionsWithResponses = questions.map(q => {
+    const matched = responsesForConv
+      .filter((r: any) => Array.isArray(r.items) && r.items.some((it: any) => it.questionId === q.id))
+      .map((r: any) => {
+        const item = (r.items || []).find((it: any) => it.questionId === q.id);
+        return {
+          responseId: r.id,
+          submittedAt: r.submittedAt ?? null,
+          senderId: r.senderId ?? null,
+          submittedForUserId: r.submittedForUserId ?? null,
+          valueText: item?.valueText ?? null,
+          optionValue: item?.optionValue ?? null,
+        };
+      });
+
+    return {
+      question: q,
+      responses: matched,
+    };
+  });
+
+  return {
+    ficheId: fiche.ficheId,
+    ficheTitle: fiche.title,
+    questions: questionsWithResponses,
+  };
+}
   async generateConversationSummary(conversationId: number) {
     const fiches = await this.prisma.fiche.findMany();
     const entries: Array<{ fiche: any; responses: any[] }> = [];

@@ -1,6 +1,6 @@
-// ===== src/suivis/suivis.controller.ts =====
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+// src/suivis/suivis.controller.ts
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { SuivisService } from './suivis.service';
 import { CreateSuiviDto } from './dto/create-suivi.dto';
 import { UpdateSuiviDto } from './dto/update-suivi.dto';
@@ -16,40 +16,39 @@ export class SuivisController {
   constructor(private readonly svc: SuivisService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lister les suivis (filtres + pagination)' })
+    @ApiPropertyOptional({ description: 'Lister les suivis' })
+
   findAll(@Query() query: QuerySuiviDto) {
     return this.svc.findAll(query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtenir un suivi avec détails patient/ordonnance' })
-  findOne(@Param('id') id: string) {
-    return this.svc.findOne(Number(id));
+  @ApiOperation({ summary: 'Obtenir un suivi par ID' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.findOne(id);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Créer des suivis (days x heures) — duplication automatique' })
+  @ApiOperation({ summary: 'Créer un nouveau suivi' })
   create(@Body() dto: CreateSuiviDto) {
     return this.svc.create(dto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Mettre à jour un suivi' })
-  update(@Param('id') id: string, @Body() dto: UpdateSuiviDto) {
-    return this.svc.update(Number(id), dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSuiviDto) {
+    return this.svc.update(id, dto);
   }
 
-  @Patch(':id/toggle')
-  @ApiOperation({ summary: 'Basculer le statut isTaken (true/false)' })
-  toggle(@Param('id') id: string) {
-    return this.svc.toggle(Number(id));
-  }
+  // @Patch(':id/toggle')
+  // @ApiOperation({ summary: 'Activer/Désactiver un suivi' })
+  // toggle(@Param('id', ParseIntPipe) id: number) {
+  //   return this.svc.toggle(id);
+  // }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Supprimer un suivi' })
-  remove(@Param('id') id: string) {
-    return this.svc.remove(Number(id));
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.remove(id);
   }
 }
-
-

@@ -9,4 +9,8 @@ export class CreateCategoryVideoDto {
   @ApiPropertyOptional({ description: 'Description optionnelle' })
   @IsOptional() @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ description: 'Cover image (URL or base64). Will be uploaded to Cloudinary.' })
+  @IsOptional() @IsString()
+  coverImage?: string;
 }

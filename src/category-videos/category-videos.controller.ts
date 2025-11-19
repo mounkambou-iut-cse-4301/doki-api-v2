@@ -8,7 +8,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @ApiBearerAuth('JWT-auth')
-// @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @ApiTags('category-videos')
 @Controller('category-videos')
 export class CategoryVideosController {

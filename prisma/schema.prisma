@@ -294,7 +294,7 @@ model CategoryVideo {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
+coverImage  String?
   videos      Video[]
 }
 
@@ -412,24 +412,26 @@ model ProtocoleOrdonance {
 }
 
 model Suivi {
-  suiviId       Int      @id @default(autoincrement())
-  patientId     Int
-  nomMedicament String
-  dosage        String?
-  frequence     String?
-  heure         String  // "HH:mm"
-  date          String  // "YYYY-MM-DD"
-  stock         Int?
-  isTaken       Boolean @default(false)
-  ordonanceId   Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+ suiviId         Int       @id @default(autoincrement())
+  name            String     // Name of the medication
+  dosage          String?    // Dosage (e.g. "500mg")
+  posologie       String?    // Posology or usage instructions
+  forme           String?    // Form (e.g. tablet, liquid)
+  voie            String?    // Route of administration
+  instructions    String?    // Specific instructions (e.g. "Before meals")
+  startDate       DateTime   // Start date of the treatment
+  endDate         DateTime   // End date of the treatment
+  frequency       Json      // Frequency object (JSON)
+  notificationTimes Json      // Times for notifications (e.g. ["08:00", "13:00"])
+  isActive        Boolean    @default(true) // Indicates if the suivi is active
+  createdAt       DateTime   @default(now()) // Date of creation
+  updatedAt       DateTime   @updatedAt    // Date of last update
 
-  patient   User       @relation(fields: [patientId], references: [userId])
-  ordonance Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
-
-  @@index([patientId, date, isTaken])
-  @@unique([patientId, date, heure, nomMedicament])
+  patientId       Int    // ID of the associated patient
+  ordonanceId     Int?   // Optional ID of the associated ordonnance
+  
+  patient         User      @relation(fields: [patientId], references: [userId])
+  ordonnance      Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
 }
 
 model PasswordReset {

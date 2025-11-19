@@ -1,6 +1,3 @@
-
-
-// ===== src/suivis/suivis.service.ts =====
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateSuiviDto } from './dto/create-suivi.dto';
@@ -12,60 +9,69 @@ import { Prisma } from 'generated/prisma';
 export class SuivisService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Helpers
-  private toMinutes(h: string) {
-    const [H, M] = h.split(':').map(Number);
-    return H * 60 + M;
-  }
-  private isValidDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
-  private isValidHour(s: string) { return /^\d{2}:\d{2}$/.test(s); }
-
   /** 1) GET ALL avec filtres & pagination */
- async findAll(query: QuerySuiviDto) {
-  try {
-    const page = query.page ?? 1;
-    const limit = query.limit ? Number(query.limit) : 10; // Ensure limit is a number
-    if (page < 1 || limit < 1) {
+  async findAll(query: QuerySuiviDto) {
+    try {
+      const page = query.page ?? 1;
+      const limit = query.limit ? Number(query.limit) : 10;
+      if (page < 1 || limit < 1) {
+        throw new BadRequestException({
+          message: 'Page et limit doivent être >= 1.',
+          messageE: 'Page and limit must be >= 1.',
+        });
+      }
+      const skip = (page - 1) * limit;
+
+      const where: Prisma.SuiviWhereInput = {};
+      if (query.patientId) where.patientId = query.patientId;
+      if (query.ordonanceId) where.ordonanceId = query.ordonanceId;
+      if (query.startDate) where.startDate = { gte: new Date(query.startDate) };
+      if (query.endDate) where.endDate = { lte: new Date(query.endDate) };
+      if (typeof query.isActive === 'boolean') where.isActive = query.isActive;
+      
+      if (query.q) {
+        where.OR = [
+          { name: { contains: query.q } },
+          { dosage: { contains: query.q } },
+          { posologie: { contains: query.q } },
+        ];
+      }
+
+      const [items, total] = await this.prisma.$transaction([
+        this.prisma.suivi.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [{ startDate: 'asc' }, { name: 'asc' }],
+          include: { 
+            // ordonnance: true,
+            patient: {
+              select: {
+                userId: true, firstName: true, lastName: true, phone: true,
+                email: true, userType: true,
+              },
+            }
+          },
+        }),
+        this.prisma.suivi.count({ where }),
+      ]);
+
+      return {
+        message: 'Suivis récupérés avec succès.',
+        messageE: 'Medication logs fetched successfully.',
+        items,
+        meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException({
-        message: 'Page et limit doivent être >= 1.',
-        messageE: 'Page and limit must be >= 1.',
+        message: `Erreur récupération : ${error.message}`,
+        messageE: `Fetch error: ${error.message}`,
       });
     }
-    const skip = (page - 1) * limit;
-
-    const where: Prisma.SuiviWhereInput = {};
-    if (query.patientId) where.patientId = query.patientId;
-    if (query.date) where.date = query.date; // ISO string YYYY-MM-DD -> tri lexicographique OK
-    if (typeof query.isTaken === 'boolean') where.isTaken = query.isTaken;
-    if (query.q) where.nomMedicament = { contains: query.q } as any; // MySQL est souvent insensitive
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.suivi.findMany({
-        where,
-        skip,
-        take: limit, // Now this is guaranteed to be a number
-        orderBy: [{ date: 'asc' }, { heure: 'asc' }],
-        include: { ordonance: true },
-      }),
-      this.prisma.suivi.count({ where }),
-    ]);
-
-    return {
-      message: 'Suivis récupérés avec succès.',
-      messageE: 'Medication logs fetched successfully.',
-      items,
-      meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
-    };
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    throw new BadRequestException({
-      message: `Erreur récupération : ${error.message}`,
-      messageE: `Fetch error: ${error.message}`,
-    });
   }
-}
 
-  /** 2) GET ONE (avec détails patient, ordonnance) */
+  /** 2) GET ONE */
   async findOne(id: number) {
     const row = await this.prisma.suivi.findUnique({
       where: { suiviId: id },
@@ -76,7 +82,7 @@ export class SuivisService {
             email: true, userType: true, isVerified: true, isBlock: true,
           },
         },
-        ordonance: true,
+        ordonnance: true,
       },
     });
     if (!row) {
@@ -92,23 +98,20 @@ export class SuivisService {
     };
   }
 
-  /** 3) CREATE EN BATCH (days x heures) avec skipDuplicates */
+  /** 3) CREATE */
   async create(dto: CreateSuiviDto) {
-    // validations basiques
-    if (!this.isValidDate(dto.date)) {
+    // Validation des dates
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+    
+    if (startDate > endDate) {
       throw new BadRequestException({
-        message: 'Date invalide (format YYYY-MM-DD).',
-        messageE: 'Invalid date format (YYYY-MM-DD).',
-      });
-    }
-    if (!Array.isArray(dto.heures) || dto.heures.length === 0 || !dto.heures.every(h=>this.isValidHour(h))) {
-      throw new BadRequestException({
-        message: 'Heures invalides (HH:mm).',
-        messageE: 'Invalid hours (HH:mm).',
+        message: 'La date de début doit être avant la date de fin.',
+        messageE: 'Start date must be before end date.',
       });
     }
 
-    // vérifs patient & ordonnance
+    // Vérification du patient
     const patient = await this.prisma.user.findUnique({ where: { userId: dto.patientId } });
     if (!patient) {
       throw new NotFoundException({
@@ -116,6 +119,8 @@ export class SuivisService {
         messageE: `Patient ${dto.patientId} not found.`,
       });
     }
+
+    // Vérification de l'ordonnance si fournie
     if (dto.ordonanceId) {
       const ord = await this.prisma.ordonance.findUnique({ where: { ordonanceId: dto.ordonanceId } });
       if (!ord) {
@@ -132,56 +137,31 @@ export class SuivisService {
       }
     }
 
-    // Générer toutes les occurrences
-    const baseDate = new Date(`${dto.date}T00:00:00`);
-    const rows: Prisma.SuiviCreateManyInput[] = [];
-    for (let d = 0; d < dto.days; d++) {
-      const day = new Date(baseDate);
-      day.setDate(day.getDate() + d);
-      const y = day.getFullYear();
-      const m = String(day.getMonth()+1).padStart(2,'0');
-      const dayStr = String(day.getDate()).padStart(2,'0');
-      const dateStr = `${y}-${m}-${dayStr}`;
-      for (const h of dto.heures) {
-        rows.push({
-          patientId: dto.patientId,
-          nomMedicament: dto.nomMedicament,
-          dosage: dto.dosage,
-          frequence: dto.frequence,
-          date: dateStr,
-          heure: h,
-          stock: dto.stock,
-          ordonanceId: dto.ordonanceId,
-          isTaken: false,
-        });
-      }
-    }
-
     try {
-      const result = await this.prisma.suivi.createMany({ data: rows, skipDuplicates: true });
-      // Récupérer les lignes créées pour les renvoyer (best effort)
-      const firstDate = rows[0].date!;
-      const lastDate = rows[rows.length-1].date!;
-      const created = await this.prisma.suivi.findMany({
-        where: {
+      const created = await this.prisma.suivi.create({
+        data: {
           patientId: dto.patientId,
-          date: { gte: firstDate, lte: lastDate },
-          nomMedicament: dto.nomMedicament,
+          ordonanceId: dto.ordonanceId,
+          name: dto.name,
+          dosage: dto.dosage,
+          posologie: dto.posologie,
+          forme: dto.forme,
+          voie: dto.voie,
+          instructions: dto.instructions,
+          startDate: startDate,
+          endDate: endDate,
+          frequency: dto.frequency as unknown as Prisma.InputJsonValue,
+          notificationTimes: dto.notificationTimes,
+          isActive: dto.isActive,
         },
-        orderBy: [{ date: 'asc' }, { heure: 'asc' }],
       });
+
       return {
-        message: `Création de ${result.count} prises (doublons ignorés).`,
-        messageE: `Created ${result.count} doses (duplicates skipped).`,
-        items: created,
+        message: 'Suivi créé avec succès.',
+        messageE: 'Medication log created successfully.',
+        item: created,
       };
     } catch (err) {
-      if ((err as any).code === 'P2002') {
-        throw new ConflictException({
-          message: 'Conflit d\'unicité sur (patientId, date, heure, nomMedicament).',
-          messageE: 'Uniqueness conflict on (patientId, date, heure, nomMedicament).',
-        });
-      }
       throw new BadRequestException({
         message: `Erreur création : ${(err as any).message}`,
         messageE: `Create error: ${(err as any).message}`,
@@ -189,7 +169,34 @@ export class SuivisService {
     }
   }
 
-  /** 4) UPDATE 1 ligne */
+  /** 4) Créer des suivis à partir d'un traitement d'ordonnance */
+  async createFromTreatment(treatment: any, ordonanceId: number, patientId: number) {
+    try {
+      const created = await this.prisma.suivi.create({
+        data: {
+          patientId,
+          ordonanceId,
+          name: treatment.name,
+          dosage: treatment.dosage,
+          posologie: treatment.posologie,
+          forme: treatment.forme,
+          voie: treatment.voie,
+          instructions: treatment.instructions,
+          startDate: new Date(treatment.startDate),
+          endDate: new Date(treatment.endDate),
+          frequency: treatment.frequency,
+          notificationTimes: treatment.notificationTimes,
+          isActive: treatment.isActive,
+        },
+      });
+      return created;
+    } catch (error) {
+      console.error('Erreur création suivi depuis traitement:', error);
+      throw error;
+    }
+  }
+
+  /** 5) UPDATE */
   async update(id: number, dto: UpdateSuiviDto) {
     try {
       const exists = await this.prisma.suivi.findUnique({ where: { suiviId: id } });
@@ -199,22 +206,38 @@ export class SuivisService {
           messageE: `Suivi ${id} not found.`,
         });
       }
-      if (dto.date && !this.isValidDate(dto.date)) {
-        throw new BadRequestException({
-          message: 'Date invalide (YYYY-MM-DD).',
-          messageE: 'Invalid date format (YYYY-MM-DD).',
-        });
+
+      // Validation des dates si fournies
+      if (dto.startDate && dto.endDate) {
+        const startDate = new Date(dto.startDate);
+        const endDate = new Date(dto.endDate);
+        if (startDate > endDate) {
+          throw new BadRequestException({
+            message: 'La date de début doit être avant la date de fin.',
+            messageE: 'Start date must be before end date.',
+          });
+        }
       }
-      if (dto.heure && !this.isValidHour(dto.heure)) {
-        throw new BadRequestException({
-          message: 'Heure invalide (HH:mm).',
-          messageE: 'Invalid hour format (HH:mm).',
-        });
-      }
+
+      const data: any = {};
+      if (dto.name !== undefined) data.name = dto.name;
+      if (dto.dosage !== undefined) data.dosage = dto.dosage;
+      if (dto.posologie !== undefined) data.posologie = dto.posologie;
+      if (dto.forme !== undefined) data.forme = dto.forme;
+      if (dto.voie !== undefined) data.voie = dto.voie;
+      if (dto.instructions !== undefined) data.instructions = dto.instructions;
+      if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
+      if (dto.endDate !== undefined) data.endDate = new Date(dto.endDate);
+      if (dto.frequency !== undefined) data.frequency = dto.frequency;
+      if (dto.notificationTimes !== undefined) data.notificationTimes = dto.notificationTimes;
+      if (dto.isActive !== undefined) data.isActive = dto.isActive;
+      if (dto.ordonanceId !== undefined) data.ordonanceId = dto.ordonanceId;
+
       const updated = await this.prisma.suivi.update({
         where: { suiviId: id },
-        data: dto,
+        data,
       });
+
       return {
         message: 'Suivi mis à jour avec succès.',
         messageE: 'Medication log updated successfully.',
@@ -222,12 +245,6 @@ export class SuivisService {
       };
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
-      if ((error as any).code === 'P2002') {
-        throw new ConflictException({
-          message: 'Conflit d\'unicité après mise à jour.',
-          messageE: 'Uniqueness conflict after update.',
-        });
-      }
       throw new BadRequestException({
         message: `Erreur mise à jour : ${error.message}`,
         messageE: `Update error: ${error.message}`,
@@ -235,28 +252,16 @@ export class SuivisService {
     }
   }
 
-  /** 5) TOGGLE isTaken (+ décrément de stock si défini) */
-  async toggle(id: number) {
-    const row = await this.prisma.suivi.findUnique({ where: { suiviId: id } });
-    if (!row) {
-      throw new NotFoundException({
-        message: `Suivi ${id} introuvable.`,
-        messageE: `Suivi ${id} not found.`,
-      });
-    }
-    const next = !row.isTaken;
-    const data: any = { isTaken: next };
-    if (next && typeof row.stock === 'number' && row.stock > 0) {
-      data.stock = { decrement: 1 } as any;
-    }
-    const updated = await this.prisma.suivi.update({ where: { suiviId: id }, data });
-    return {
-      message: `Statut de prise mis à jour (${next ? 'pris' : 'non pris'}).`,
-      messageE: `Intake status updated (${next ? 'taken' : 'not taken'}).`,
-      item: updated,
-    };
-  }
-
+  //   async toggle(id: number) {
+  //   const row = await this.prisma.suivi.findUnique({ where: { suiviId: id }, include: { ordonance: true, patient: true } });
+  //   if (!row) throw new NotFoundException({ message: `Suivi ${id} introuvable.` });
+  //   const next = !row.isTaken;
+  //   const data: any = { isTaken: next };
+  //   if (next && typeof row.stock === 'number' && row.stock > 0) data.stock = { decrement: 1 } as any;
+  //   const updated = await this.prisma.suivi.update({ where: { suiviId: id }, data, include: { ordonance: true, patient: true } });
+  //   const traitements = updated.ordonance ? this.normalizeTraitementsArray(updated.ordonance.traitement as any, { createdAt: updated.ordonance.createdAt, updatedAt: updated.ordonance.updatedAt }) : [];
+  //   return { message: `Statut mis à jour.`, item: { ...updated, traitements } };
+  // }
   /** 6) DELETE */
   async remove(id: number) {
     const row = await this.prisma.suivi.findUnique({ where: { suiviId: id } });
@@ -272,5 +277,11 @@ export class SuivisService {
       messageE: 'Medication log deleted successfully.',
     };
   }
-}
 
+  /** 7) Supprimer les suivis d'une ordonnance */
+  async removeByOrdonance(ordonanceId: number) {
+    await this.prisma.suivi.deleteMany({
+      where: { ordonanceId }
+    });
+  }
+}

@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoryVideoDto } from './dto/create-category-video.dto';
 import { UpdateCategoryVideoDto } from './dto/update-category-video.dto';
 import { QueryCategoryVideoDto } from './dto/query-category-video.dto';
+import { uploadImageToCloudinary } from 'src/utils/cloudinary';
 
 @Injectable()
 export class CategoryVideosService {
@@ -19,10 +20,24 @@ export class CategoryVideosService {
       });
     }
 
+    // upload coverImage si fourni (toujours vers Cloudinary)
+    let coverImageUrl: string | null = null;
+    if (dto.coverImage && dto.coverImage.trim()) {
+      try {
+        coverImageUrl = await uploadImageToCloudinary(dto.coverImage, `category_videos`);
+      } catch (err: any) {
+        throw new BadRequestException({
+          message: `Erreur upload coverImage: ${err.message}`,
+          messageE: `Cover upload error: ${err.message}`,
+        });
+      }
+    }
+
     const item = await this.prisma.categoryVideo.create({
       data: {
         name: dto.name.trim(),
-        description: dto.description,
+        description: dto.description ?? null,
+        coverImage: coverImageUrl,
       },
     });
 
@@ -43,6 +58,7 @@ export class CategoryVideosService {
       });
     }
 
+    // si nouveau nom et différent => vérifier unicité
     if (dto.name && dto.name !== found.name) {
       const dup = await this.prisma.categoryVideo.findUnique({ where: { name: dto.name } });
       if (dup) {
@@ -53,11 +69,25 @@ export class CategoryVideosService {
       }
     }
 
+    // upload coverImage si fourni (toujours vers Cloudinary) — remplace l'ancien
+    let nextCoverImage = found.coverImage ?? null;
+    if (dto.coverImage && dto.coverImage.trim()) {
+      try {
+        nextCoverImage = await uploadImageToCloudinary(dto.coverImage, `category_videos`);
+      } catch (err: any) {
+        throw new BadRequestException({
+          message: `Erreur upload coverImage: ${err.message}`,
+          messageE: `Cover upload error: ${err.message}`,
+        });
+      }
+    }
+
     const item = await this.prisma.categoryVideo.update({
       where: { categoryId: id },
       data: {
-        name: dto.name?.trim(),
-        description: dto.description,
+        name: dto.name?.trim() ?? found.name,
+        description: dto.description ?? found.description,
+        coverImage: nextCoverImage,
       },
     });
 
@@ -68,7 +98,7 @@ export class CategoryVideosService {
     };
   }
 
-  /** LIST (pagination + recherche) */
+  /** LIST (pagination + recherche) — unchanged except return coverImage */
   async findAll(query: QueryCategoryVideoDto) {
     const page  = query.page  != null ? Number(query.page)  : 1;
     const limit = query.limit != null ? Number(query.limit) : 10;
@@ -89,7 +119,6 @@ export class CategoryVideosService {
       ];
     }
 
-    // items + total + count vidéos par catégorie
     const [items, total] = await this.prisma.$transaction([
       this.prisma.categoryVideo.findMany({
         where,
@@ -110,6 +139,7 @@ export class CategoryVideosService {
         categoryId: c.categoryId,
         name: c.name,
         description: c.description,
+        coverImage: c.coverImage, // <-- added
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
         videosCount: c._count.videos,
@@ -139,6 +169,7 @@ export class CategoryVideosService {
         categoryId: item.categoryId,
         name: item.name,
         description: item.description,
+        coverImage: item.coverImage, // <-- added
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         videosCount: item._count.videos,
@@ -146,7 +177,7 @@ export class CategoryVideosService {
     };
   }
 
-  /** DELETE (protégé si vidéos rattachées) */
+  /** DELETE (protégé si vidéos rattachées) — unchanged */
   async remove(id: number) {
     const item = await this.prisma.categoryVideo.findUnique({
       where: { categoryId: id },

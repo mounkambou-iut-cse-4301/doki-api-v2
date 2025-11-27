@@ -278,6 +278,7 @@ model Video {
   description String?
   categoryId  Int?
   medecinId   Int
+  duree        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

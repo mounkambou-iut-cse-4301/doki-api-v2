@@ -45,4 +45,4 @@ ALTER TABLE `Suivi` DROP COLUMN `date`,
     ADD COLUMN `voie` VARCHAR(191) NULL;
 
 -- AddForeignKey
-ALTER TABLE `Ordonance` ADD CONSTRAINT `Ordonance_reservationId_fkey` FOREIGN KEY (`reservationId`) REFERENCES `Reservation`(`reservationId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `Ordonance` ADD CONSTRAINT `Ordonance_newReservationId_fkey` FOREIGN KEY (`reservationId`) REFERENCES `Reservation`(`reservationId`) ON DELETE RESTRICT ON UPDATE CASCADE;

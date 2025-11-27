@@ -51,6 +51,7 @@ export class VideosService {
           description: dto.description,
           categoryId: dto.categoryVideoId ?? null,
           medecinId: dto.medecinId,
+          duree: dto.duree,
         },
         include: {
           // ✅ nom de relation correct
@@ -116,6 +117,7 @@ export class VideosService {
           title: dto.title ?? existing.title,
           path: nextPath,
           description: dto.description ?? existing.description,
+          duree: dto.duree ?? existing.duree,
           medecinId: dto.medecinId ?? existing.medecinId,
           categoryId: dto.categoryVideoId ?? existing.categoryId ?? null,
         },
@@ -174,6 +176,7 @@ export class VideosService {
             videoId: true,
             title: true,
             path: true,
+            duree:true,
             description: true,
             medecinId: true,
             categoryId: true,

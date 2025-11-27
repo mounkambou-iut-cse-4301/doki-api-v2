@@ -15,6 +15,10 @@ export class CreateVideoDto {
   @IsOptional() @IsString()
   description?: string;
 
+  @ApiPropertyOptional({ description: 'Duree de la video' })
+@IsOptional() @IsString()
+  duree?: string;
+
   @ApiPropertyOptional({ description: 'ID de la catégorie (CategoryVideo.categoryId)' })
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   categoryVideoId?: number;

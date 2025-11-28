@@ -181,7 +181,7 @@ export class VideosService {
             medecinId: true,
             categoryId: true,
             createdAt: true,
-            category: { select: { categoryId: true, name: true } },
+            category: { select: { categoryId: true, name: true,coverImage:true } },
           },
         }),
         this.prisma.video.count({ where }),

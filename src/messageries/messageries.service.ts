@@ -185,8 +185,8 @@ export class MessageriesService {
         take: limit,
         orderBy: { lastMessageAt: 'desc' },
         include: {
-          medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-          patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          medecin: { select: { userId: true, firstName: true, lastName: true, profile: true,phone:true } },
+          patient: { select: { userId: true, firstName: true, lastName: true, profile: true,phone:true } },
           messages: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
       }),

@@ -185,8 +185,8 @@ export class MessageriesService {
         take: limit,
         orderBy: { lastMessageAt: 'desc' },
         include: {
-          medecin: { select: { userId: true, firstName: true, lastName: true } },
-          patient: { select: { userId: true, firstName: true, lastName: true } },
+          medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
           messages: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
       }),
@@ -240,6 +240,8 @@ export class MessageriesService {
         select: {
           messageId: true, senderId: true, receiverId: true, kind: true,
           content: true, meta: true, isRead: true, createdAt: true, ficheId: true,
+          sender: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+          receiver: { select: { userId: true, firstName: true, lastName: true, profile: true } },
         },
       }),
       this.prisma.message.count({ where: { conversationId } }),

@@ -236,7 +236,7 @@ export class MessageriesService {
       this.prisma.message.findMany({
         where: { conversationId },
         skip, take: limit,
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         select: {
           messageId: true, senderId: true, receiverId: true, kind: true,
           content: true, meta: true, isRead: true, createdAt: true, ficheId: true,

@@ -165,60 +165,205 @@ export class MessageriesService {
     return { message: 'Message envoyé', item: created };
   }
 
+  // async listConversations(query: QueryConversationsDto) {
+  //   const page  = Number(query.page ?? 1);
+  //   const limit = Number(query.limit ?? 10);
+  //   if (page < 1 || limit < 1) throw new BadRequestException({ message: 'Page et limit >= 1.' });
+  //   const skip = (page - 1) * limit;
+
+  //   const where: any = {};
+  //   if (query.medecinId) where.medecinId = query.medecinId;
+  //   if (query.patientId) where.patientId = query.patientId;
+  //   if (query.unreadOnly && query.forUserId) {
+  //     where.messages = { some: { receiverId: query.forUserId, isRead: false } };
+  //   }
+
+  //   const [rows, total] = await this.prisma.$transaction([
+  //     this.prisma.conversation.findMany({
+  //       where,
+  //       skip,
+  //       take: limit,
+  //       orderBy: { lastMessageAt: 'desc' },
+  //       include: {
+  //         medecin: { select: { userId: true, firstName: true, lastName: true, profile: true,phone:true } },
+  //         patient: { select: { userId: true, firstName: true, lastName: true, profile: true,phone:true } },
+  //         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+  //       },
+  //     }),
+  //     this.prisma.conversation.count({ where }),
+  //   ]);
+
+  //   let unreadMap: Record<number, number> = {};
+  //   if (query.forUserId && rows.length) {
+  //     const grouped = await this.prisma.message.groupBy({
+  //       by: ['conversationId'],
+  //       where: {
+  //         conversationId: { in: rows.map(r => r.conversationId) },
+  //         receiverId: query.forUserId,
+  //         isRead: false,
+  //       },
+  //       _count: { _all: true },
+  //     });
+  //     unreadMap = Object.fromEntries(grouped.map(g => [g.conversationId!, g._count._all]));
+  //   }
+
+  //   const items = rows.map(r => ({
+  //     conversationId: r.conversationId,
+  //     medecin: r.medecin,
+  //     patient: r.patient,
+  //     lastMessageAt: r.lastMessageAt,
+  //     lastMessage: r.messages[0] ?? null,
+  //     unreadCountForUser: query.forUserId ? (unreadMap[r.conversationId] ?? 0) : 0,
+  //   }));
+
+  //   return { message: 'Conversations récupérées.', items,
+  //     meta: { total, page, limit, lastPage: Math.ceil(total / limit) } };
+  // }
   async listConversations(query: QueryConversationsDto) {
-    const page  = Number(query.page ?? 1);
-    const limit = Number(query.limit ?? 10);
-    if (page < 1 || limit < 1) throw new BadRequestException({ message: 'Page et limit >= 1.' });
-    const skip = (page - 1) * limit;
-
-    const where: any = {};
-    if (query.medecinId) where.medecinId = query.medecinId;
-    if (query.patientId) where.patientId = query.patientId;
-    if (query.unreadOnly && query.forUserId) {
-      where.messages = { some: { receiverId: query.forUserId, isRead: false } };
-    }
-
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.conversation.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { lastMessageAt: 'desc' },
-        include: {
-          medecin: { select: { userId: true, firstName: true, lastName: true, profile: true,phone:true } },
-          patient: { select: { userId: true, firstName: true, lastName: true, profile: true,phone:true } },
-          messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-        },
-      }),
-      this.prisma.conversation.count({ where }),
-    ]);
-
-    let unreadMap: Record<number, number> = {};
-    if (query.forUserId && rows.length) {
-      const grouped = await this.prisma.message.groupBy({
-        by: ['conversationId'],
-        where: {
-          conversationId: { in: rows.map(r => r.conversationId) },
-          receiverId: query.forUserId,
-          isRead: false,
-        },
-        _count: { _all: true },
-      });
-      unreadMap = Object.fromEntries(grouped.map(g => [g.conversationId!, g._count._all]));
-    }
-
-    const items = rows.map(r => ({
-      conversationId: r.conversationId,
-      medecin: r.medecin,
-      patient: r.patient,
-      lastMessageAt: r.lastMessageAt,
-      lastMessage: r.messages[0] ?? null,
-      unreadCountForUser: query.forUserId ? (unreadMap[r.conversationId] ?? 0) : 0,
-    }));
-
-    return { message: 'Conversations récupérées.', items,
-      meta: { total, page, limit, lastPage: Math.ceil(total / limit) } };
+  const page  = Number(query.page ?? 1);
+  const limit = Number(query.limit ?? 10);
+  if (page < 1 || limit < 1) {
+    throw new BadRequestException({ message: 'Page et limit >= 1.' });
   }
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+  if (query.medecinId) where.medecinId = query.medecinId;
+  if (query.patientId) where.patientId = query.patientId;
+  if (query.unreadOnly && query.forUserId) {
+    where.messages = { some: { receiverId: query.forUserId, isRead: false } };
+  }
+
+  const [rows, total] = await this.prisma.$transaction([
+    this.prisma.conversation.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { lastMessageAt: 'desc' },
+      include: {
+        medecin: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            profile: true,
+            phone: true,
+          },
+        },
+        patient: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            profile: true,
+            phone: true,
+          },
+        },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+    }),
+    this.prisma.conversation.count({ where }),
+  ]);
+
+  // ====== Unread map (inchangé) ======
+  let unreadMap: Record<number, number> = {};
+  if (query.forUserId && rows.length) {
+    const grouped = await this.prisma.message.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: rows.map(r => r.conversationId) },
+        receiverId: query.forUserId,
+        isRead: false,
+      },
+      _count: { _all: true },
+    });
+    unreadMap = Object.fromEntries(
+      grouped.map(g => [g.conversationId!, g._count._all]),
+    );
+  }
+
+  // ====== Map de la dernière réservation passée la plus proche ======
+  let reservationMap: Record<number, number | null> = {};
+
+  if (rows.length) {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const timeStr  = now.toTimeString().slice(0, 5); // 'HH:MM'
+
+    // Toutes les réservations DÉJÀ PASSÉES pour les couples (medecinId, patientId)
+    const pastReservations = await this.prisma.reservation.findMany({
+      where: {
+        AND: [
+          {
+            OR: rows.map(r => ({
+              medecinId: r.medecinId,
+              patientId: r.patientId,
+            })),
+          },
+          {
+            OR: [
+              // Date strictement avant aujourd'hui
+              { date: { lt: todayStr } },
+              // Même jour mais heure <= maintenant
+              {
+                date: todayStr,
+                hour: { lte: timeStr },
+              },
+            ],
+          },
+        ],
+        // 👇 On ne filtre PAS sur status (peu importe le status)
+      },
+      orderBy: [
+        { date: 'desc' }, // plus récent d'abord
+        { hour: 'desc' },
+      ],
+      select: {
+        reservationId: true,
+        medecinId: true,
+        patientId: true,
+        date: true,
+        hour: true,
+      },
+    });
+
+    // Pour chaque conversation : première réservation correspondante dans la liste triée (donc la plus récente dans le passé)
+    for (const conv of rows) {
+      const match = pastReservations.find(
+        r =>
+          r.medecinId === conv.medecinId &&
+          r.patientId === conv.patientId,
+      );
+      reservationMap[conv.conversationId] = match?.reservationId ?? null;
+    }
+  }
+
+  // ====== Construction des items de réponse ======
+  const items = rows.map(r => ({
+    conversationId: r.conversationId,
+    medecin: r.medecin,
+    patient: r.patient,
+    lastMessageAt: r.lastMessageAt,
+    lastMessage: r.messages[0] ?? null,
+    unreadCountForUser: query.forUserId
+      ? (unreadMap[r.conversationId] ?? 0)
+      : 0,
+    // 👇 La réservation DÉJÀ PASSÉE, la plus proche de maintenant
+    lastReservationId: reservationMap[r.conversationId] ?? null,
+  }));
+
+  return {
+    message: 'Conversations récupérées.',
+    items,
+    meta: {
+      total,
+      page,
+      limit,
+      lastPage: Math.ceil(total / limit),
+    },
+  };
+}
+
 
   async listMessages(conversationId: number, query: QueryMessagesDto) {
     const page  = Number(query.page ?? 1);

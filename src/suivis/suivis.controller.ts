@@ -10,7 +10,7 @@ import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @ApiTags('suivis')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+// @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @Controller('suivis')
 export class SuivisController {
   constructor(private readonly svc: SuivisService) {}

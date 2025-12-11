@@ -14,7 +14,7 @@ import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 @ApiTags('messageries (DM)')
 @Controller('messageries')
  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+  // @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class MessageriesController {
   constructor(private readonly svc: MessageriesService) {}
 

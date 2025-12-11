@@ -8,7 +8,7 @@ import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 import { OrdonanceFilterDto } from './dto/ordonance-filter.dto';
 
  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+  // @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @ApiTags('ordonances')
 @Controller('ordonances')
 export class OrdonancesController {

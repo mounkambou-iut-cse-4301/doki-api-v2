@@ -19,14 +19,14 @@ export class FrequencyDto {
   @IsOptional() @IsNumber() @Min(1)
   timesPerDay?: number;
 
-  @ApiPropertyOptional({ 
-    description: 'Pour weekly: jours de la semaine [1-7] où 1=lundi, 7=dimanche',
-    example: [1, 3, 5],
-    type: [Number]
-  })
-  @IsOptional() @IsArray() 
-  @IsNumber({}, { each: true }) 
-  daysOfWeek?: number[];
+  // @ApiPropertyOptional({ 
+  //   description: 'Pour weekly: jours de la semaine [1-7] où 1=lundi, 7=dimanche',
+  //   example: [1, 3, 5],
+  //   type: [Number]
+  // })
+  // @IsOptional() @IsArray() 
+  // @IsNumber({}, { each: true }) 
+  // daysOfWeek?: number[];
 }
 
 export class TreatmentItemDto {

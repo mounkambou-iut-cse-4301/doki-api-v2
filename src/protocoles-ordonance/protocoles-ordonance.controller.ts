@@ -1,5 +1,5 @@
 // src/protocoles-ordonance/protocoles-ordonance.controller.ts
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ProtocolesOrdonanceService } from './protocoles-ordonance.service';
 import { CreateProtocoleOrdonanceDto } from './dto/create-protocole-ordonance.dto';
@@ -7,13 +7,61 @@ import { UpdateProtocoleOrdonanceDto } from './dto/update-protocole-ordonance.dt
 import { QueryProtocoleOrdonanceDto } from './dto/query-protocole-ordonance.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { QueryMedicamentDto } from './dto/query-medicament.dto';
+import { UpdateMedicamentDto } from './dto/update-medicament.dto';
+import { CreateMedicamentDto } from './dto/create-medicament.dto';
 
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+// @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @ApiTags('protocoles-ordonance')
 @Controller('protocoles-ordonance')
 export class ProtocolesOrdonanceController {
   constructor(private readonly svc: ProtocolesOrdonanceService) {}
+
+
+   @Post('medicaments')
+  @ApiOperation({ summary: 'Créer un médicament' })
+  @ApiResponse({ status: 201, description: 'Médicament créé.' })
+  createMedicament(@Body() dto: CreateMedicamentDto) {
+    return this.svc.createMedicament(dto);
+  }
+
+  @Patch('medicaments/:id')
+  @ApiOperation({ summary: 'Mettre à jour un médicament' })
+  @ApiParam({ name: 'id', type: 'integer' })
+  @ApiResponse({ status: 200, description: 'Médicament mis à jour.' })
+  updateMedicament(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateMedicamentDto,
+  ) {
+    return this.svc.updateMedicament(id, dto);
+  }
+
+  @Delete('medicaments/:id')
+  @ApiOperation({ summary: 'Supprimer un médicament' })
+  @ApiParam({ name: 'id', type: 'integer' })
+  @ApiResponse({ status: 200, description: 'Médicament supprimé.' })
+  deleteMedicament(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.deleteMedicament(id);
+  }
+
+  @Get('medicaments/:id')
+  @ApiOperation({ summary: 'Obtenir un médicament par ID' })
+  @ApiParam({ name: 'id', type: 'integer' })
+  @ApiResponse({ status: 200, description: 'Médicament retourné.' })
+  findOneMedicament(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.findOneMedicament(id);
+  }
+
+  @Get('medicaments')
+  @ApiOperation({
+    summary: 'Lister les médicaments (search par nom, dosage, forme, voie, posologie)',
+  })
+  @ApiResponse({ status: 200, description: 'Liste des médicaments retournée.' })
+  findAllMedicaments(@Query() q: QueryMedicamentDto) {
+    return this.svc.findAllMedicaments(q);
+  }
+
 
   @Post()
   @ApiOperation({ summary: 'Créer un protocole ordonnance (nom maladie + traitement pré-rempli)' })

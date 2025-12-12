@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE `User` MODIFY `userType` ENUM('PATIENT', 'MEDECIN', 'ADMIN', 'SUPERADMIN') NOT NULL;

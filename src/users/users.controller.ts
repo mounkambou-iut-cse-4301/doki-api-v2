@@ -24,6 +24,8 @@ import { UpdateMedecinDto } from './dto/update-medecin.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { UpdateUserRoleDto } from 'src/roles/dto/update-user-role.dto';
+import { CreateAdminDto } from './dto/create-admin.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -87,4 +89,35 @@ export class UsersController {
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.svc.findOne(id);
   }
+
+  @Post('signup/admin')
+@ApiOperation({ summary: 'Créer un administrateur avec ses rôles (roleIds)' })
+@ApiResponse({ status: 201, description: 'Administrateur créé.' })
+signupAdmin(@Body() dto: CreateAdminDto) {
+  return this.svc.signupAdmin(dto);
+}
+
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+@Post(':id/roles')
+@ApiOperation({ summary: 'Attribuer un rôle à un administrateur (par roleId)' })
+@ApiParam({ name: 'id', type: 'integer' })
+addRoleToAdmin(
+  @Param('id', ParseIntPipe) id: number,
+  @Body() dto: UpdateUserRoleDto,
+) {
+  return this.svc.addRoleToAdmin(id, dto.roleId);
+}
+
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+@Post(':id/roles/remove')
+@ApiOperation({ summary: 'Retirer un rôle à un administrateur (par roleId)' })
+@ApiParam({ name: 'id', type: 'integer' })
+removeRoleFromAdmin(
+  @Param('id', ParseIntPipe) id: number,
+  @Body() dto: UpdateUserRoleDto,
+) {
+  return this.svc.removeRoleFromAdmin(id, dto.roleId);
+}
 }

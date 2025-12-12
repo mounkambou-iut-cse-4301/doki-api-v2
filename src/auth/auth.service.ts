@@ -24,7 +24,7 @@ export class AuthService {
   /** Login par téléphone + mot de passe -> JWT 1 an */
   async login(dto: LoginDto) {
     try {
-      const user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+      const user = await this.prisma.user.findUnique({ where: { phone: dto.phone },include: { roles: true } });
       if (!user) {
         throw new UnauthorizedException({
           message: 'Identifiants invalides.',

@@ -6,6 +6,9 @@ import { UpdateProtocoleOrdonanceDto } from './dto/update-protocole-ordonance.dt
 import { QueryProtocoleOrdonanceDto } from './dto/query-protocole-ordonance.dto';
 import { Prisma } from 'generated/prisma';
 import { uploadImageToCloudinary } from 'src/utils/cloudinary';
+import { QueryMedicamentDto } from './dto/query-medicament.dto';
+import { UpdateMedicamentDto } from './dto/update-medicament.dto';
+import { CreateMedicamentDto } from './dto/create-medicament.dto';
 
 @Injectable()
 export class ProtocolesOrdonanceService {
@@ -82,5 +85,127 @@ export class ProtocolesOrdonanceService {
     ]);
 
     return { items: rows, meta: { total, page, limit, lastPage: Math.ceil(total / limit) } };
+  }
+
+  // ====== MÉDICAMENTS ======
+
+  async createMedicament(dto: CreateMedicamentDto) {
+    const created = await this.prisma.medicament.create({
+      data: {
+        name: dto.name,
+        dosage: dto.dosage,
+        forme: dto.forme,
+        voie: dto.voie,
+        posologie: dto.posologie,
+        comment: dto.comment,
+      },
+    });
+    return { message: 'Médicament créé', item: created };
+  }
+
+  async updateMedicament(id: number, dto: UpdateMedicamentDto) {
+    const current = await this.prisma.medicament.findUnique({
+      where: { medicamentId: id },
+    });
+    if (!current) {
+      throw new NotFoundException('Médicament introuvable');
+    }
+
+    const updated = await this.prisma.medicament.update({
+      where: { medicamentId: id },
+      data: {
+        name: dto.name ?? current.name,
+        dosage: dto.dosage ?? current.dosage,
+        forme: dto.forme ?? current.forme,
+        voie: dto.voie ?? current.voie,
+        posologie: dto.posologie ?? current.posologie,
+        comment: dto.comment ?? current.comment,
+      },
+    });
+
+    return { message: 'Médicament mis à jour', item: updated };
+  }
+
+  async deleteMedicament(id: number) {
+    const current = await this.prisma.medicament.findUnique({
+      where: { medicamentId: id },
+    });
+    if (!current) {
+      throw new NotFoundException('Médicament introuvable');
+    }
+
+    await this.prisma.medicament.delete({
+      where: { medicamentId: id },
+    });
+
+    return { message: 'Médicament supprimé' };
+  }
+
+  async findOneMedicament(id: number) {
+    const item = await this.prisma.medicament.findUnique({
+      where: { medicamentId: id },
+    });
+    if (!item) {
+      throw new NotFoundException('Médicament introuvable');
+    }
+    return { item };
+  }
+
+  async findAllMedicaments(query: QueryMedicamentDto) {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 10);
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException('Page et limit >= 1');
+    }
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.MedicamentWhereInput = {};
+
+    const q = query.q?.trim();
+    if (q) {
+      where.OR = [
+        { name: { contains: q } },
+        { dosage: { contains: q } },
+        { forme: { contains: q } },
+        { voie: { contains: q } },
+        { posologie: { contains: q } },
+      ];
+    }
+
+    if (query.name) {
+      where.name = { contains: query.name.trim() };
+    }
+    if (query.dosage) {
+      where.dosage = { contains: query.dosage.trim() };
+    }
+    if (query.forme) {
+      where.forme = { contains: query.forme.trim() };
+    }
+    if (query.voie) {
+      where.voie = { contains: query.voie.trim() };
+    }
+    if (query.posologie) {
+      where.posologie = { contains: query.posologie.trim() };
+    }
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.medicament.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.medicament.count({ where }),
+    ]);
+
+    return {
+      items: rows,
+      meta: {
+        total,
+        page,
+        limit,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
   }
 }

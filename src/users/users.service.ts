@@ -12,6 +12,7 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 import { UpdateMedecinDto } from './dto/update-medecin.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import * as bcrypt from 'bcryptjs';
+import { CreateAdminDto } from './dto/create-admin.dto';
 
 const userSafeSelect = {
   userId: true,
@@ -564,6 +565,7 @@ async findOne(id: number) {
             medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
           },
         },
+        roles: true,
 
         // Un seul planning (objet)
         plannings: { take: 1, orderBy: { createdAt: 'desc' } },
@@ -630,6 +632,134 @@ async findOne(id: number) {
     });
   }
 }
+// 1) Création d'un administrateur avec ses rôles (par roleId)
+  async signupAdmin(dto: CreateAdminDto) {
+    try {
+      // Vérif email
+      const byEmail = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (byEmail) {
+        throw new ConflictException({
+          message: `L'email '${dto.email}' est déjà utilisé.`,
+          messageE: `Email '${dto.email}' is already in use.`,
+        });
+      }
+      // Vérif phone
+      const byPhone = await this.prisma.user.findFirst({
+        where: { phone: dto.phone },
+      });
+      if (byPhone) {
+        throw new ConflictException({
+          message: `Le téléphone '${dto.phone}' est déjà utilisé.`,
+          messageE: `Phone '${dto.phone}' is already in use.`,
+        });
+      }
 
+      const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+      const userType = dto.isSuperAdmin ? UserType.SUPERADMIN : UserType.ADMIN;
+
+      const admin = await this.prisma.user.create({
+        data: {
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          sex: dto.sex,
+          email: dto.email,
+          phone: dto.phone,
+          password: hashedPassword,
+          userType,
+          acceptPrivacy: true,
+        },
+      });
+
+      // Attribution des rôles si fournis (par roleId)
+      if (dto.roleIds?.length) {
+        // Optionnel : vérifier que les rôles existent
+        const roles = await this.prisma.role.findMany({
+          where: { roleId: { in: dto.roleIds } },
+        });
+
+        const validRoleIds = roles.map(r => r.roleId);
+        const data = validRoleIds.map(roleId => ({
+          userId: admin.userId,
+          roleId,
+        }));
+
+        if (data.length) {
+          await this.prisma.userRole.createMany({
+            data,
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return this.findOne(admin.userId);
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      throw new BadRequestException({
+        message: `Erreur création administrateur : ${error.message}`,
+        messageE: `Error creating admin: ${error.message}`,
+      });
+    }
+  }
+
+  // 2) Attribuer un rôle à un admin (roleId envoyé par le front)
+  async addRoleToAdmin(userId: number, roleId: number) {
+    const user = await this.prisma.user.findUnique({ where: { userId } });
+    if (!user || (user.userType !== UserType.ADMIN && user.userType !== UserType.SUPERADMIN)) {
+      throw new BadRequestException({
+        message: `L'utilisateur ${userId} n'est pas un administrateur.`,
+        messageE: `User ${userId} is not an admin.`,
+      });
+    }
+
+    const role = await this.prisma.role.findUnique({ where: { roleId } });
+    if (!role) {
+      throw new NotFoundException({
+        message: `Rôle d'ID ${roleId} introuvable.`,
+        messageE: `Role with ID ${roleId} not found.`,
+      });
+    }
+
+    await this.prisma.userRole.upsert({
+      where: {
+        userId_roleId: {
+          userId,
+          roleId,
+        },
+      },
+      update: {},
+      create: {
+        userId,
+        roleId,
+      },
+    });
+
+    return { message: 'Rôle attribué.', userId, roleId };
+  }
+
+  // 3) Retirer un rôle à un admin (roleId envoyé par le front)
+  async removeRoleFromAdmin(userId: number, roleId: number) {
+    // On vérifie que le rôle existe (optionnel mais propre)
+    const role = await this.prisma.role.findUnique({ where: { roleId } });
+    if (!role) {
+      throw new NotFoundException({
+        message: `Rôle d'ID ${roleId} introuvable.`,
+        messageE: `Role with ID ${roleId} not found.`,
+      });
+    }
+
+    await this.prisma.userRole.delete({
+      where: {
+        userId_roleId: {
+          userId,
+          roleId,
+        },
+      },
+    });
+
+    return { message: 'Rôle retiré.', userId, roleId };
+  }
 
 }

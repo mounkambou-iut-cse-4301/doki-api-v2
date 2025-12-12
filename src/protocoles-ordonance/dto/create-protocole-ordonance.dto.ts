@@ -13,10 +13,10 @@ export class CreateProtocoleOrdonanceDto {
   @IsOptional() @IsString() @MaxLength(500)
   description?: string;
 
-  @ApiProperty({ type: [TreatmentItemDto], description: 'Traitement pré-rempli' })
+  @ApiProperty({description: 'Traitement pré-rempli' })
   @IsArray() 
   // @ValidateNested({ each: true }) @Type(() => TreatmentItemDto)
-  traitement: TreatmentItemDto[];
+  traitement: JSON;
 
   @ApiPropertyOptional({ description: 'Images (URL ou base64)' })
   @IsOptional() @IsArray() @IsString({ each: true })

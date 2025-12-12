@@ -14,7 +14,8 @@ export class CreateProtocoleOrdonanceDto {
   description?: string;
 
   @ApiProperty({ type: [TreatmentItemDto], description: 'Traitement pré-rempli' })
-  @IsArray() @ValidateNested({ each: true }) @Type(() => TreatmentItemDto)
+  @IsArray() 
+  // @ValidateNested({ each: true }) @Type(() => TreatmentItemDto)
   traitement: TreatmentItemDto[];
 
   @ApiPropertyOptional({ description: 'Images (URL ou base64)' })

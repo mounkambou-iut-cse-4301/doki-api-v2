@@ -99,7 +99,7 @@ export class CasDifficilesService {
         where: { casId },
         orderBy: { createdAt: 'asc' },
         skip, take: limit,
-        include: { sender: { select: { userId: true, firstName: true, lastName: true } } },
+        include: { sender: { select: { userId: true, firstName: true, lastName: true, profile:true } } },
       }),
       this.prisma.message.count({ where: { casId } }),
     ]);

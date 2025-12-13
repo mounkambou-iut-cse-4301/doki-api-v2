@@ -14,6 +14,14 @@ export class QueryMedicamentDto {
   @IsOptional()
   @IsString()
   name?: string;
+  @ApiPropertyOptional({ description: 'Filtrer par nom commercial (contains)' })
+  @IsOptional()
+  @IsString()
+  nameCommercial?: string;
+  @ApiPropertyOptional({ description: 'Filtrer par nom labo (contains)' })
+  @IsOptional()
+  @IsString()
+  nameLabo?: string;
 
   @ApiPropertyOptional({ description: 'Filtrer par dosage (contains)' })
   @IsOptional()

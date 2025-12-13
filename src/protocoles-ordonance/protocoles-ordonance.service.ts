@@ -93,6 +93,8 @@ export class ProtocolesOrdonanceService {
     const created = await this.prisma.medicament.create({
       data: {
         name: dto.name,
+        nameCommercial: dto.nameCommercial,
+        nameLabo: dto.nameLabo,
         dosage: dto.dosage,
         forme: dto.forme,
         voie: dto.voie,
@@ -115,6 +117,8 @@ export class ProtocolesOrdonanceService {
       where: { medicamentId: id },
       data: {
         name: dto.name ?? current.name,
+        nameCommercial: dto.nameCommercial ?? current.nameCommercial,
+        nameLabo: dto.nameLabo ?? current.nameLabo,
         dosage: dto.dosage ?? current.dosage,
         forme: dto.forme ?? current.forme,
         voie: dto.voie ?? current.voie,
@@ -169,11 +173,19 @@ export class ProtocolesOrdonanceService {
         { forme: { contains: q } },
         { voie: { contains: q } },
         { posologie: { contains: q } },
+        { nameCommercial: { contains: q } },
+        { nameLabo: { contains: q } },
       ];
     }
 
     if (query.name) {
       where.name = { contains: query.name.trim() };
+    }
+    if (query.nameCommercial) {
+      where.nameCommercial = { contains: query.nameCommercial.trim() };
+    }
+    if( query.nameLabo) {
+      where.nameLabo = { contains: query.nameLabo.trim() };
     }
     if (query.dosage) {
       where.dosage = { contains: query.dosage.trim() };

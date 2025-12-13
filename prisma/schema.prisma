@@ -416,6 +416,8 @@ model ProtocoleOrdonance {
 model Medicament {
   medicamentId Int     @id @default(autoincrement())
   name         String
+  nameCommercial String?
+  nameLabo    String?
   dosage       String?
   forme        String?
   voie         String?

@@ -9,6 +9,14 @@ export class CreateMedicamentDto {
   @IsString()
   name: string;
 
+    @ApiPropertyOptional({ description: 'Nom commercial de la maladie', maxLength: 255 })
+    @IsOptional() @IsString() 
+    nameCommercial?: string;
+  
+    @ApiPropertyOptional({ description: 'Nom du laboratoire', maxLength: 255 })
+    @IsOptional() @IsString() 
+    nameLabo?: string;
+
   @ApiPropertyOptional({
     description: 'Dosage (ex: 500mg)',
     example: '500mg',

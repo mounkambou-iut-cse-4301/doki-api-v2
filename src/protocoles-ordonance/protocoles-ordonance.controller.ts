@@ -55,7 +55,7 @@ export class ProtocolesOrdonanceController {
 
   @Get('medicaments')
   @ApiOperation({
-    summary: 'Lister les médicaments (search par nom, dosage, forme, voie, posologie)',
+    summary: 'Lister les médicaments (search par nom scientifique, nom commercial, nom labo, dosage, forme, voie, posologie)',
   })
   @ApiResponse({ status: 200, description: 'Liste des médicaments retournée.' })
   findAllMedicaments(@Query() q: QueryMedicamentDto) {

@@ -10,11 +10,16 @@ import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
 import { QueryConversationDetailDto } from './dto/query-conversation-detail.dto';
 import { randomUUID } from 'crypto';
 import { bi, isValidExpoToken, sendExpoPush } from 'src/utils/expo-push';
+import { QuerySummaryAiDto } from './dto/query-summary-ai.dto';
+import { GeminiService } from 'src/ai/gemini/gemini.service';
+import { OpenaiService } from 'src/ai/ai.service';
+
 
 
 @Injectable()
 export class MessageriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly openai: OpenaiService, private readonly gemini: GeminiService
+) {}
 
   // /* ------------------ Helpers ------------------ */
   // private async getOrCreateConversation(medecinId: number, patientId: number) {
@@ -955,5 +960,59 @@ async getFicheQuestionsAndResponses(conversationId: number, ficheId: number) {
       }[v || ''] || undefined
     );
   }
+
+
+
+async generateConversationSummaryMistidracs(conversationId: number) {
+const fiche = await this.prisma.fiche.findFirst({
+  where: {
+    requests: {
+      some: {
+        conversationId,
+      },
+    },
+  },
+  select: {
+    ficheId: true,
+    responses: true,
+  },
+});
+
+if (!fiche || !Array.isArray(fiche.responses)) {
+  throw new NotFoundException('Aucune réponse de fiche trouvée');
+}
+
+const payload = fiche.responses;
+
+  return this.openai.generateMistidracsSummary(
+    conversationId,
+    payload,
+  );
+}
+
+async generateConversationMistidracsGemini(conversationId: number) {
+  const fiche = await this.prisma.fiche.findFirst({
+    where: {
+      requests: {
+        some: { conversationId },
+      },
+    },
+    select: { responses: true },
+  });
+
+  if (!fiche || !Array.isArray(fiche.responses)) {
+    throw new NotFoundException('Aucune réponse trouvée');
+  }
+
+  return this.gemini.generateMistidracsSummary(
+    conversationId,
+    fiche.responses,
+  );
+}
+
+
+
+
+
 
 }

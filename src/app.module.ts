@@ -20,9 +20,10 @@ import { CasDifficilesModule } from './cas-difficiles/cas-difficiles.module';
 import { CategoryVideosModule } from './category-videos/category-videos.module';
 import { ProtocolesOrdonanceModule } from './protocoles-ordonance/protocoles-ordonance.module';
 import { StatsModule } from './stats/stats.module';
+import { AiModule } from './ai/ai.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule, StatsModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}), SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule, StatsModule, AiModule],
 })
 export class AppModule {}

@@ -10,6 +10,7 @@ import { SendFicheRequestDto } from './dto/send-fiche-request.dto';
 import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { QuerySummaryAiDto } from './dto/query-summary-ai.dto';
 
 @ApiTags('messageries (DM)')
 @Controller('messageries')
@@ -114,6 +115,28 @@ export class MessageriesController {
 async getConversationSummary(@Param('conversationId') conversationId: string) {
   return this.svc.generateConversationSummary(Number(conversationId));
 }
+
+
+@Get('fiches/summary-mistidracs/by-conversation/:conversationId')
+@ApiOperation({ summary: 'Résumé MISTIDRACS via OpenAI' })
+getMistidracsOpenAI(
+  @Param('conversationId') conversationId: string,
+) {
+  return this.svc.generateConversationSummaryMistidracs(
+    Number(conversationId),
+  );
+}
+
+@Get('fiches/summary-mistidracs-gemini/by-conversation/:conversationId')
+@ApiOperation({ summary: 'Résumé MISTIDRACS via Gemini' })
+getMistidracsGemini(
+  @Param('conversationId') conversationId: string,
+) {
+  return this.svc.generateConversationMistidracsGemini(
+    Number(conversationId),
+  );
+}
+
 
 
 }

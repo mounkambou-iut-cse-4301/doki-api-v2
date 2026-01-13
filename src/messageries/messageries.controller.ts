@@ -11,6 +11,7 @@ import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 import { QuerySummaryAiDto } from './dto/query-summary-ai.dto';
+import { ExplainQuestionDto } from './dto/explain-question.dto';
 
 @ApiTags('messageries (DM)')
 @Controller('messageries')
@@ -137,6 +138,17 @@ getMistidracsGemini(
   );
 }
 
-
+  @Post('explain-question')
+  @ApiOperation({
+    summary:
+      'Explication d’une question médicale en français simple (OpenAI / Gemini)',
+  })
+  explainQuestion(@Body() dto: ExplainQuestionDto) {
+    return this.svc.explainFicheQuestion(
+      dto.ficheId,
+      dto.questionId,
+      dto.provider,
+    );
+  }
 
 }

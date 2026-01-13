@@ -13,6 +13,9 @@ import { bi, isValidExpoToken, sendExpoPush } from 'src/utils/expo-push';
 import { QuerySummaryAiDto } from './dto/query-summary-ai.dto';
 import { GeminiService } from 'src/ai/gemini/gemini.service';
 import { OpenaiService } from 'src/ai/ai.service';
+import { AiProvider } from './dto/explain-question.dto';
+import { buildExplainQuestionPrompt } from 'src/ai/explain-question.prompt';
+import { FicheQuestion } from 'src/fiches/types/fiche-question.type';
 
 
 
@@ -1011,6 +1014,51 @@ async generateConversationMistidracsGemini(conversationId: number) {
 }
 
 
+
+// src/messageries/messageries.service.ts
+
+async explainFicheQuestion(
+  ficheId: number,
+  questionId: string, // ✅ UUID
+  provider: 'openai' | 'gemini' = 'openai',
+) {
+  const fiche = await this.prisma.fiche.findUnique({
+    where: { ficheId },
+    select: {
+      ficheId: true,
+      questions: true,
+    },
+  });
+
+  if (!fiche) {
+    throw new NotFoundException('Fiche introuvable');
+  }
+
+  const questions = fiche.questions as FicheQuestion[];
+
+  const question = questions.find(
+    (q) => q.id === questionId,
+  );
+
+  if (!question) {
+    throw new NotFoundException(
+      'Question introuvable dans cette fiche',
+    );
+  }
+
+  const prompt = buildExplainQuestionPrompt({
+    ficheId,
+    questionId,
+    label: question.label,
+    description: question.description,
+  });
+
+  if (provider === 'gemini') {
+    return this.gemini.generateJson(prompt);
+  }
+
+  return this.openai.generateJson(prompt);
+}
 
 
 

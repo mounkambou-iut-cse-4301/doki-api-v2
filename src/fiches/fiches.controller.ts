@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FichesService } from './fiches.service';
 import { CreateFicheDto } from './dto/create-fiche.dto';
@@ -9,8 +9,8 @@ import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @ApiTags('fiches (CRUD)')
 @Controller('fiches')
- @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+//  @ApiBearerAuth('JWT-auth')
+//   @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class FichesController {
   constructor(private readonly svc: FichesService) {}
 
@@ -50,5 +50,14 @@ export class FichesController {
   @ApiOperation({ summary: 'Mettre à jour une fiche (remplacement simple des questions si fourni)' })
   update(@Param('id') id: string, @Body() dto: UpdateFicheDto) {
     return this.svc.updateFiche(Number(id), dto);
+  }
+
+   @Delete(':id')
+  @ApiOperation({
+    summary:
+      'Supprimer une fiche (interdit si des patients ont déjà répondu)',
+  })
+  remove(@Param('id') id: string) {
+    return this.svc.deleteFiche(Number(id));
   }
 }

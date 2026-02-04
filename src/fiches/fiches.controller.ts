@@ -9,8 +9,8 @@ import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
 @ApiTags('fiches (CRUD)')
 @Controller('fiches')
-//  @ApiBearerAuth('JWT-auth')
-//   @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+ @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class FichesController {
   constructor(private readonly svc: FichesService) {}
 

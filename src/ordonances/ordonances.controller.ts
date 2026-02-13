@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { OrdonancesService } from './ordonances.service';
 import { CreateOrdonanceDto } from './dto/create-ordonance.dto';
@@ -42,5 +42,13 @@ export class OrdonancesController {
   @ApiResponse({ status: 200, description: 'Ordonnance retournée.' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.svc.findOne(id);
+  }
+
+    @Delete(':id')
+  @ApiOperation({ summary: 'Supprimer une ordonnance (cascade FK)' })
+  @ApiParam({ name: 'id', type: 'integer' })
+  @ApiResponse({ status: 200, description: 'Ordonnance supprimée.' })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.remove(id);
   }
 }

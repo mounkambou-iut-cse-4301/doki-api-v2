@@ -267,4 +267,24 @@ export class OrdonancesService {
     if (!ord) throw new NotFoundException('Ordonnance introuvable.');
     return ord;
   }
+
+  async remove(id: number) {
+    const ord = await this.prisma.ordonance.findUnique({
+      where: { ordonanceId: id },
+      select: { ordonanceId: true },
+    });
+    if (!ord) throw new NotFoundException({ message: 'Ordonnance introuvable.' ,messageE: 'Prescription not found.'});
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1) Supprimer toutes les lignes qui référencent l’ordonnance (FK)
+      await tx.suivi.deleteMany({ where: { ordonanceId: id } });
+
+      // (si demain tu ajoutes d’autres tables FK → tu ajoutes ici d’autres deleteMany)
+
+      // 2) Supprimer l’ordonnance
+      await tx.ordonance.delete({ where: { ordonanceId: id } });
+    });
+
+    return { message: 'Ordonnance supprimée.', messageE: 'Prescription deleted.' };
+  }
 }

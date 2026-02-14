@@ -21,65 +21,231 @@ export class AuthService {
     return rest;
   }
 
+  private sanitizeUserForAuth(
+  user: any,
+  roles: any[],
+  permissions: Array<{ permissionId: number; name: string; description: string | null }>,
+) {
+  const { password, roles: _roles, ...rest } = user;
+
+  // ✅ IMPORTANT: on ne touche pas à rest.profile (photo)
+  // Si tu avais un encrypt global sur rest, fais-le champ par champ
+  // et laisse rest.profile intact.
+
+  return {
+    ...rest,
+    roles: roles.map((r) => ({
+      roleId: r.roleId,
+      name: r.name,
+      description: r.description ?? null,
+    })),
+    permissions, // permissions effectives
+  };
+}
+
+
   /** Login par téléphone + mot de passe -> JWT 1 an */
-  async login(dto: LoginDto) {
-    try {
-      const user = await this.prisma.user.findUnique({ where: { phone: dto.phone },include: { roles: true } });
-      if (!user) {
-        throw new UnauthorizedException({
-          message: 'Identifiants invalides.',
-          messageE: 'Invalid credentials.',
-        });
-      }
-      const ok = await bcrypt.compare(dto.password, user.password);
-      if (!ok) {
-        throw new UnauthorizedException({
-          message: 'Identifiants invalides.',
-          messageE: 'Invalid credentials.',
-        });
-      }
-      // Optionnel: empêcher le login si bloqué / non vérifié
-      if (user.isBlock) {
-        throw new ForbiddenException({
-          message: 'Votre compte est bloqué.',
-          messageE: 'Your account is blocked.',
-        });
-      }
-      if (!user.isVerified) {
-        throw new ForbiddenException({
-          message: 'Votre compte n\'est pas vérifié.',
-          messageE: 'Your account is not verified.',
-        });
-      }
+  // async login(dto: LoginDto) {
+  //   try {
+  //     const user = await this.prisma.user.findUnique({ where: { phone: dto.phone },include: { roles: true } });
+  //     if (!user) {
+  //       throw new UnauthorizedException({
+  //         message: 'Identifiants invalides.',
+  //         messageE: 'Invalid credentials.',
+  //       });
+  //     }
+  //     const ok = await bcrypt.compare(dto.password, user.password);
+  //     if (!ok) {
+  //       throw new UnauthorizedException({
+  //         message: 'Identifiants invalides.',
+  //         messageE: 'Invalid credentials.',
+  //       });
+  //     }
+  //     // Optionnel: empêcher le login si bloqué / non vérifié
+  //     if (user.isBlock) {
+  //       throw new ForbiddenException({
+  //         message: 'Votre compte est bloqué.',
+  //         messageE: 'Your account is blocked.',
+  //       });
+  //     }
+  //     if (!user.isVerified) {
+  //       throw new ForbiddenException({
+  //         message: 'Votre compte n\'est pas vérifié.',
+  //         messageE: 'Your account is not verified.',
+  //       });
+  //     }
 
-      const payload = { sub: user.userId, phone: user.phone, type: user.userType };
-      const token = await this.jwt.signAsync(payload, { expiresIn: '365d' });
+  //     const payload = { sub: user.userId, phone: user.phone, type: user.userType };
+  //     const token = await this.jwt.signAsync(payload, { expiresIn: '365d' });
 
-      // sauvegarder le expotoken si c'est entree
-      if(dto.expotoken !=""){
-         this.prisma.user.update({
-        where: { userId: user.userId },
-        data: { expotoken: dto.expotoken },
-      });
-      }
+  //     // sauvegarder le expotoken si c'est entree
+  //     if(dto.expotoken !=""){
+  //        this.prisma.user.update({
+  //       where: { userId: user.userId },
+  //       data: { expotoken: dto.expotoken },
+  //     });
+  //     }
 
-      return {
-        message: 'Connexion réussie.',
-        messageE: 'Login successful.',
-        token,
-        user: this.sanitizeUser(user),
-      };
-    } catch (error) {
-      if (
-        error instanceof UnauthorizedException ||
-        error instanceof ForbiddenException
-      ) throw error;
-      throw new BadRequestException({
-        message: `Erreur de connexion : ${error.message}`,
-        messageE: `Login error: ${error.message}`,
+  //     return {
+  //       message: 'Connexion réussie.',
+  //       messageE: 'Login successful.',
+  //       token,
+  //       user: this.sanitizeUser(user),
+  //     };
+  //   } catch (error) {
+  //     if (
+  //       error instanceof UnauthorizedException ||
+  //       error instanceof ForbiddenException
+  //     ) throw error;
+  //     throw new BadRequestException({
+  //       message: `Erreur de connexion : ${error.message}`,
+  //       messageE: `Login error: ${error.message}`,
+  //     });
+  //   }
+  // }
+async login(dto: LoginDto) {
+  try {
+    const phone = dto.phone?.trim();
+
+    const user = await this.prisma.user.findUnique({
+      where: { phone },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: {
+                  include: { permission: true }, // RolePermission -> Permission
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException({
+        message: 'Identifiants invalides.',
+        messageE: 'Invalid credentials.',
       });
     }
+
+    const ok = await bcrypt.compare(dto.password, user.password);
+    if (!ok) {
+      throw new UnauthorizedException({
+        message: 'Identifiants invalides.',
+        messageE: 'Invalid credentials.',
+      });
+    }
+
+    if (user.isBlock) {
+      throw new ForbiddenException({
+        message: 'Votre compte est bloqué.',
+        messageE: 'Your account is blocked.',
+      });
+    }
+
+    if (!user.isVerified) {
+      throw new ForbiddenException({
+        message: "Votre compte n'est pas vérifié.",
+        messageE: 'Your account is not verified.',
+      });
+    }
+
+    // ✅ Roles assignés
+    const assignedRoles = (user.roles || [])
+      .map((ur) => ur.role)
+      .filter(Boolean);
+
+    // ✅ SuperAdmin (case sensitive EXACT)
+    const isSuperAdmin = assignedRoles.some(
+      (r) => r.name === 'SUPER ADMIN' || r.name === 'SUPERADMIN',
+    );
+
+    // ✅ Permissions effectives
+    let effectivePermissions: Array<{ permissionId: number; name: string; description: string | null }> = [];
+    let allRoles: Array<{ roleId: number; name: string; description: string | null }> | undefined;
+    let allPermissions: Array<{ permissionId: number; name: string; description: string | null }> | undefined;
+
+    if (isSuperAdmin) {
+      const [rolesDb, permissionsDb] = await this.prisma.$transaction([
+        this.prisma.role.findMany({
+          select: { roleId: true, name: true, description: true },
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.permission.findMany({
+          select: { permissionId: true, name: true, description: true },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+
+      allRoles = rolesDb;
+      allPermissions = permissionsDb;
+
+      // Super admin => permissions effectives = toutes les permissions
+      effectivePermissions = permissionsDb;
+    } else {
+      // Agrégation des permissions depuis les rôles
+      const map = new Map<number, { permissionId: number; name: string; description: string | null }>();
+
+      for (const r of assignedRoles) {
+        const rp = (r.permissions || []);
+        for (const link of rp) {
+          if (link.permission) {
+            map.set(link.permission.permissionId, {
+              permissionId: link.permission.permissionId,
+              name: link.permission.name,
+              description: link.permission.description ?? null,
+            });
+          }
+        }
+      }
+
+      effectivePermissions = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const payload = { sub: user.userId, phone: user.phone, type: user.userType };
+    const token = await this.jwt.signAsync(payload, { expiresIn: '365d' });
+
+    // ✅ sauvegarder le expotoken si entré
+    const expo = dto.expotoken?.trim();
+    if (expo) {
+      await this.prisma.user.update({
+        where: { userId: user.userId },
+        data: { expotoken: expo },
+      });
+    }
+
+    // ✅ user safe + roles + permissions (sans chiffrer la photo)
+    const userSafe = this.sanitizeUserForAuth(user, assignedRoles, effectivePermissions);
+
+    return {
+      message: 'Connexion réussie.',
+      messageE: 'Login successful.',
+      token,
+      user: userSafe,
+
+      // ✅ au besoin aussi au top-level (selon ta préférence)
+      roles: assignedRoles.map((r) => ({
+        roleId: r.roleId,
+        name: r.name,
+        description: r.description ?? null,
+      })),
+      permissions: effectivePermissions,
+
+      // ✅ uniquement si superadmin: tout le catalogue
+      ...(isSuperAdmin ? { allRoles, allPermissions } : {}),
+    };
+  } catch (error) {
+    if (error instanceof UnauthorizedException || error instanceof ForbiddenException) throw error;
+
+    throw new BadRequestException({
+      message: `Erreur de connexion : ${error.message}`,
+      messageE: `Login error: ${error.message}`,
+    });
   }
+}
 
   /** Changer le mot de passe (via userId issu du JWT) */
   async changePassword(userId: number, dto: ChangePasswordDto) {

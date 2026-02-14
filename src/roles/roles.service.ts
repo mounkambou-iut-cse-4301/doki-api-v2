@@ -18,7 +18,7 @@ export class RolesService {
   async create(dto: CreateRoleDto) {
     const normalized = this.normalizeRoleName(dto.name);
     if (!normalized) {
-      throw new BadRequestException('Nom de rôle invalide');
+      throw new BadRequestException({ message: 'Le nom du rôle est requis' ,messageE: 'Role name is required' });
     }
 
     return this.prisma.role.create({

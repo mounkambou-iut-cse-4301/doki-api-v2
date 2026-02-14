@@ -518,6 +518,30 @@ model Role {
   name        String     @unique      // ex: 'SUPERADMIN', 'MANAGE_PATIENT'
   description String?
   users       UserRole[]
+  permissions RolePermission[]
+}
+model Permission {
+  permissionId Int      @id @default(autoincrement())
+  name         String   @unique // TOUJOURS en MAJUSCULE sans accents (normalisé côté service)
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles RolePermission[]
+
+  @@index([name])
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  assignedAt   DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [roleId])
+  permission Permission @relation(fields: [permissionId], references: [permissionId])
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 model UserRole {

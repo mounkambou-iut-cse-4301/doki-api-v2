@@ -45,6 +45,15 @@ export class ReservationsService {
       });
     }
 
+      // check si la date nest pas inferieur a 6h de temps
+    const now = new Date();
+    if (dateTime.getTime() < now.getTime() + 6 * 60 * 60 * 1000) {
+      throw new BadRequestException({
+        message: 'La réservation doit être faite au moins 6h à l’avance.',
+        messageE: 'Reservation must be made at least 6h in advance.',
+      });
+    }
+
     // 2) Vérifier médecin + patient
     const [med, pat] = await Promise.all([
       this.prisma.user.findUnique({
@@ -139,6 +148,8 @@ export class ReservationsService {
         messageE: `Slot outside schedule (${plan.debutHour}-${plan.endHour}).`,
       });
     }
+
+  
 
     const others = await this.prisma.reservation.findMany({
       where: {

@@ -189,42 +189,6 @@ export class AuthService {
 //     });
 //   }
 // }
-
-//   /** Changer le mot de passe (via userId issu du JWT) */
-//   async changePassword(userId: number, dto: ChangePasswordDto) {
-//     try {
-//       const user = await this.prisma.user.findUnique({ where: { userId } });
-//       if (!user) {
-//         throw new NotFoundException({
-//           message: `Utilisateur ${userId} introuvable.`,
-//           messageE: `User ${userId} not found.`,
-//         });
-//       }
-//       const ok = await bcrypt.compare(dto.oldPassword, user.password);
-//       if (!ok) {
-//         throw new UnauthorizedException({
-//           message: 'Ancien mot de passe incorrect.',
-//           messageE: 'Old password is incorrect.',
-//         });
-//       }
-//       const hash = await bcrypt.hash(dto.newPassword, 10);
-//       await this.prisma.user.update({ where: { userId }, data: { password: hash } });
-//       return {
-//         message: 'Mot de passe modifié avec succès.',
-//         messageE: 'Password changed successfully.',
-//       };
-//     } catch (error) {
-//       if (
-//         error instanceof NotFoundException ||
-//         error instanceof UnauthorizedException
-//       ) throw error;
-//       throw new BadRequestException({
-//         message: `Erreur modification mot de passe : ${error.message}`,
-//         messageE: `Password change error: ${error.message}`,
-//       });
-//     }
-//   }
-
 /** Login par téléphone + mot de passe -> JWT 1 an */
 async login(dto: LoginDto) {
   try {
@@ -383,6 +347,40 @@ async login(dto: LoginDto) {
     });
   }
 }
+  /** Changer le mot de passe (via userId issu du JWT) */
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    try {
+      const user = await this.prisma.user.findUnique({ where: { userId } });
+      if (!user) {
+        throw new NotFoundException({
+          message: `Utilisateur ${userId} introuvable.`,
+          messageE: `User ${userId} not found.`,
+        });
+      }
+      const ok = await bcrypt.compare(dto.oldPassword, user.password);
+      if (!ok) {
+        throw new UnauthorizedException({
+          message: 'Ancien mot de passe incorrect.',
+          messageE: 'Old password is incorrect.',
+        });
+      }
+      const hash = await bcrypt.hash(dto.newPassword, 10);
+      await this.prisma.user.update({ where: { userId }, data: { password: hash } });
+      return {
+        message: 'Mot de passe modifié avec succès.',
+        messageE: 'Password changed successfully.',
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException
+      ) throw error;
+      throw new BadRequestException({
+        message: `Erreur modification mot de passe : ${error.message}`,
+        messageE: `Password change error: ${error.message}`,
+      });
+    }
+  }
 
   /** Demander un OTP par email */
   async requestReset(dto: RequestResetDto) {

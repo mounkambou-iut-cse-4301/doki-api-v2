@@ -72,8 +72,8 @@ async function assignRoleToUser(userId, roleId, roleName) {
 }
 
 async function main() {
-  const phone = env('SUPERADMIN_PHONE', '+237698726972');
-  const email = env('SUPERADMIN_EMAIL', 'superadmin@gmail.com');
+  const phone = env('SUPERADMIN_PHONE', '+237692473511');
+  const email = env('SUPERADMIN_EMAIL', 'mounkambou@gmail.com');
   const passwordPlain = env('SUPERADMIN_PASSWORD', '1234');
   const firstName = env('SUPERADMIN_FIRSTNAME', 'Super');
   const lastName = env('SUPERADMIN_LASTNAME', 'Admin');

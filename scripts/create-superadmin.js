@@ -1,9 +1,11 @@
 /* prisma/scripts/create-superadmin.js
  *
  * ✅ Objectif:
- * - Créer un utilisateur SUPER ADMIN (UserType = SUPERADMIN)
- * - Si le rôle SUPERADMIN n'existe pas => le créer
- * - Attribuer automatiquement le rôle SUPERADMIN à cet utilisateur
+ * - Si un user avec ce phone existe => lui attribuer DIRECTEMENT le rôle SUPERADMIN (et stop)
+ * - Sinon:
+ *    - Créer le rôle SUPERADMIN s'il n'existe pas
+ *    - Créer un utilisateur SUPER ADMIN (UserType = SUPERADMIN)
+ *    - Attribuer automatiquement le rôle SUPERADMIN à cet utilisateur
  * - Script idempotent: tu peux le relancer sans doublons
  *
  * 📌 Exécution:
@@ -18,7 +20,7 @@
  *   SUPERADMIN_SEX=OTHER   // MALE | FEMALE | OTHER
  *
  * Optionnel:
- *   FORCE_PASSWORD_UPDATE=true   // si l'utilisateur existe, on met à jour son password
+ *   FORCE_PASSWORD_UPDATE=true   // si l'utilisateur n'existe pas, ou si tu veux forcer update quand on le crée
  */
 
 const { PrismaClient } = require('../generated/prisma');
@@ -35,36 +37,21 @@ function normalizeRoleName(name) {
   return String(name)
     .trim()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // supprime accents
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .toUpperCase();
 }
 
-async function main() {
-  const phone = env('SUPERADMIN_PHONE', '+237692473511');
-  const email = env('SUPERADMIN_EMAIL', 'superadmin@gmail.com');
-  const passwordPlain = env('SUPERADMIN_PASSWORD', '1234');
-  const firstName = env('SUPERADMIN_FIRSTNAME', 'Super');
-  const lastName = env('SUPERADMIN_LASTNAME', 'Admin');
-  const sex = env('SUPERADMIN_SEX', 'OTHER'); // MALE | FEMALE | OTHER
-  const forcePasswordUpdate = env('FORCE_PASSWORD_UPDATE', 'false').toLowerCase() === 'true';
+async function ensureRole(roleName) {
+  const normalized = normalizeRoleName(roleName);
 
-  if (!phone) throw new Error('SUPERADMIN_PHONE est requis');
-  if (!email) throw new Error('SUPERADMIN_EMAIL est requis');
-  if (!passwordPlain) throw new Error('SUPERADMIN_PASSWORD est requis');
-
-  // 1) Créer ou récupérer le rôle SUPERADMIN
-  const roleName = normalizeRoleName('SUPERADMIN');
-
-  let role = await prisma.role.findUnique({
-    where: { name: roleName },
-  });
+  let role = await prisma.role.findUnique({ where: { name: normalized } });
 
   if (!role) {
     role = await prisma.role.create({
       data: {
-        name: roleName,
+        name: normalized,
         description: 'Rôle Super Administrateur (accès total).',
       },
     });
@@ -73,91 +60,111 @@ async function main() {
     console.log(`ℹ️ Rôle existant: ${role.name}`);
   }
 
-  // 2) Créer ou récupérer l'utilisateur par phone (unique)
-  let user = await prisma.user.findUnique({
-    where: { phone },
+  return role;
+}
+
+async function assignRoleToUser(userId, roleId, roleName) {
+  await prisma.userRole.createMany({
+    data: [{ userId, roleId }],
+    skipDuplicates: true,
   });
+  console.log(`✅ Rôle ${roleName} attribué à userId=${userId}`);
+}
+
+async function main() {
+  const phone = env('SUPERADMIN_PHONE', '+237698726972');
+  const email = env('SUPERADMIN_EMAIL', 'superadmin@gmail.com');
+  const passwordPlain = env('SUPERADMIN_PASSWORD', '1234');
+  const firstName = env('SUPERADMIN_FIRSTNAME', 'Super');
+  const lastName = env('SUPERADMIN_LASTNAME', 'Admin');
+  const sex = env('SUPERADMIN_SEX', 'OTHER'); // MALE | FEMALE | OTHER
+  const forcePasswordUpdate =
+    env('FORCE_PASSWORD_UPDATE', 'false').toLowerCase() === 'true';
+
+  if (!phone) throw new Error('SUPERADMIN_PHONE est requis');
+
+  // ✅ 0) Vérifier d'abord si le phone existe déjà
+  const existingUser = await prisma.user.findUnique({
+    where: { phone },
+    select: { userId: true, phone: true },
+  });
+
+  // ✅ 1) Créer/récupérer le rôle SUPERADMIN (on en a besoin dans tous les cas)
+  const role = await ensureRole('SUPERADMIN');
+
+  // ✅ Si user existe => on attribue juste le rôle et on s'arrête
+  if (existingUser) {
+    await assignRoleToUser(existingUser.userId, role.roleId, role.name);
+
+    const userWithRoles = await prisma.user.findUnique({
+      where: { userId: existingUser.userId },
+      include: { roles: { include: { role: true } } },
+    });
+
+    const roleNames = (userWithRoles?.roles || [])
+      .map((x) => x.role?.name)
+      .filter(Boolean);
+
+    console.log(
+      `🎯 Rôles actuels du user: ${roleNames.join(', ') || '(aucun)'}`,
+    );
+    console.log('✅ Script terminé (user existant).');
+    return;
+  }
+
+  // ✅ 2) Sinon => on crée l'utilisateur + on attribue le rôle
+  if (!email) throw new Error('SUPERADMIN_EMAIL est requis');
+  if (!passwordPlain) throw new Error('SUPERADMIN_PASSWORD est requis');
 
   const passwordHash = await bcrypt.hash(passwordPlain, 10);
 
-  if (!user) {
-    // IMPORTANT: les champs requis dans ton schema User:
-    // firstName, lastName, sex, email, phone, password, userType
-    user = await prisma.user.create({
-      data: {
-        firstName,
-        lastName,
-        sex, // 'MALE' | 'FEMALE' | 'OTHER'
-        email,
-        phone,
-        password: passwordHash,
-        userType: 'SUPERADMIN',
-        acceptPrivacy: true,
-        isBlock: false,
-        isVerified: true,
-      },
-    });
-
-    console.log(`✅ Utilisateur SUPERADMIN créé: userId=${user.userId} phone=${user.phone}`);
-  } else {
-    // Si l'utilisateur existe, on s'assure qu'il est bien SUPERADMIN, vérifié, non bloqué
-    const dataToUpdate = {
-      userType: 'SUPERADMIN',
-      isBlock: false,
-      isVerified: true,
-      acceptPrivacy: true,
-    };
-
-    if (forcePasswordUpdate) {
-      dataToUpdate.password = passwordHash;
-    }
-
-    // ⚠️ email/firstName/lastName: tu peux choisir de mettre à jour ou non.
-    // Ici on met à jour l'email si différent (attention conflit unique).
-    // On reste safe: update seulement si email est identique ou non utilisé.
-    if (user.email !== email) {
-      const emailUsed = await prisma.user.findUnique({ where: { email } });
-      if (!emailUsed || emailUsed.userId === user.userId) {
-        dataToUpdate.email = email;
-      } else {
-        console.log(`⚠️ Email "${email}" déjà utilisé par un autre user. On ne modifie pas l'email.`);
-      }
-    }
-
-    await prisma.user.update({
-      where: { userId: user.userId },
-      data: dataToUpdate,
-    });
-
-    user = await prisma.user.findUnique({ where: { userId: user.userId } });
-
-    console.log(`ℹ️ Utilisateur existant mis à jour: userId=${user.userId} phone=${user.phone}`);
+  // sécurité email unique
+  const emailUsed = await prisma.user.findUnique({ where: { email } });
+  if (emailUsed) {
+    throw new Error(
+      `SUPERADMIN_EMAIL "${email}" est déjà utilisé par un autre utilisateur (userId=${emailUsed.userId}).`,
+    );
   }
 
-  // 3) Attribuer le rôle SUPERADMIN à l'utilisateur (sans doublon)
-  await prisma.userRole.createMany({
-    data: [
-      {
-        userId: user.userId,
-        roleId: role.roleId,
-      },
-    ],
-    skipDuplicates: true,
-  });
-
-  console.log(`✅ Rôle ${role.name} attribué à userId=${user.userId}`);
-
-  // 4) (Optionnel mais utile) Afficher les rôles actuels du user
-  const userWithRoles = await prisma.user.findUnique({
-    where: { userId: user.userId },
-    include: {
-      roles: { include: { role: true } },
+  let user = await prisma.user.create({
+    data: {
+      firstName,
+      lastName,
+      sex, // 'MALE' | 'FEMALE' | 'OTHER'
+      email,
+      phone,
+      password: passwordHash,
+      userType: 'SUPERADMIN',
+      acceptPrivacy: true,
+      isBlock: false,
+      isVerified: true,
     },
   });
 
-  const roleNames = (userWithRoles?.roles || []).map((x) => x.role?.name).filter(Boolean);
-  console.log(`🎯 Rôles actuels du user: ${roleNames.join(', ') || '(aucun)'}`);
+  console.log(
+    `✅ Utilisateur SUPERADMIN créé: userId=${user.userId} phone=${user.phone}`,
+  );
 
+  // Optionnel: si tu veux “forcer update” après create (peu utile, mais on respecte le flag)
+  if (forcePasswordUpdate) {
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: { password: passwordHash },
+    });
+  }
+
+  await assignRoleToUser(user.userId, role.roleId, role.name);
+
+  const userWithRoles = await prisma.user.findUnique({
+    where: { userId: user.userId },
+    include: { roles: { include: { role: true } } },
+  });
+
+  const roleNames = (userWithRoles?.roles || [])
+    .map((x) => x.role?.name)
+    .filter(Boolean);
+
+  console.log(`🎯 Rôles actuels du user: ${roleNames.join(', ') || '(aucun)'}`);
   console.log('✅ Script terminé avec succès.');
 }
 

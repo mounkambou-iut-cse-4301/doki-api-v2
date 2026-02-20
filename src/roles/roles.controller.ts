@@ -1,11 +1,27 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  // UseGuards
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { UpdateRoleDto } from './dto/update-role.dto';
+// import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+// import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 
-@ApiTags('roles') // 👈 ce tag va apparaître dans Swagger
+@ApiTags('roles')
 @ApiBearerAuth('JWT-auth')
 // @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @Controller('roles')
@@ -24,5 +40,38 @@ export class RolesController {
   @ApiResponse({ status: 200, description: 'Liste des rôles.' })
   findAll() {
     return this.svc.findAll();
+  }
+
+  @Get(':roleId')
+  @ApiOperation({ summary: 'Récupérer un rôle par son ID' })
+  @ApiResponse({ status: 200, description: 'Rôle trouvé.' })
+  @ApiResponse({ status: 404, description: 'Rôle introuvable.' })
+  findOne(@Param('roleId', ParseIntPipe) roleId: number) {
+    return this.svc.findOne(roleId);
+  }
+
+  @Patch(':roleId')
+  @ApiOperation({ summary: 'Mettre à jour un rôle' })
+  @ApiResponse({ status: 200, description: 'Rôle mis à jour.' })
+  @ApiResponse({ status: 404, description: 'Rôle introuvable.' })
+  update(
+    @Param('roleId', ParseIntPipe) roleId: number,
+    @Body() dto: UpdateRoleDto,
+  ) {
+    return this.svc.update(roleId, dto);
+  }
+
+  @Delete(':roleId')
+  @ApiOperation({
+    summary: "Supprimer un rôle (uniquement s'il n'est référencé par aucune FK)",
+  })
+  @ApiResponse({ status: 200, description: 'Rôle supprimé.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Suppression impossible car rôle référencé.',
+  })
+  @ApiResponse({ status: 404, description: 'Rôle introuvable.' })
+  remove(@Param('roleId', ParseIntPipe) roleId: number) {
+    return this.svc.remove(roleId);
   }
 }

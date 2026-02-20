@@ -565,7 +565,7 @@ async findOne(id: number) {
             medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
           },
         },
-        roles: true,
+        roles: { include: { role: true } },
 
         // Un seul planning (objet)
         plannings: { take: 1, orderBy: { createdAt: 'desc' } },

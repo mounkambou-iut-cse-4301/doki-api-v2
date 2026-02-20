@@ -182,8 +182,8 @@ async function bootstrap() {
 
   // --- Swagger ---
   const config = new DocumentBuilder()
-    .setTitle('MARIE PAIE API')
-    .setDescription('API de gestion de MARIE PAIE')
+    .setTitle('Dokita API')
+    .setDescription('API de gestion de Dokita')
     .setVersion('1.0')
     .addBearerAuth(
       {

@@ -264,11 +264,13 @@ export class MessageriesController {
   }
 
   @Get('fiches/summary/by-conversation/:conversationId')
-  @ApiConversationSummary()
-  async getConversationSummary(@Param('conversationId') conversationId: string) {
-    return this.svc.generateConversationSummary(Number(conversationId));
-  }
-
+  @ApiOperation({ summary: 'Résumé automatique des fiches structurées (MISTIDRACS ou libres)' })
+async getConversationSummary(@Param('conversationId') conversationId: string) {
+  // return this.svc.generateConversationSummary(Number(conversationId));
+    return this.svc.generateConversationMistidracsGemini(
+    Number(conversationId),
+  );
+}
   @Get('fiches/summary-mistidracs/by-conversation/:conversationId')
   @ApiMistidracsSummary()
   getMistidracsOpenAI(

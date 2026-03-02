@@ -1,16 +1,24 @@
+// src/fiches/fiches.controller.ts
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FichesService } from './fiches.service';
 import { CreateFicheDto } from './dto/create-fiche.dto';
 import { UpdateFicheDto } from './dto/update-fiche.dto';
 import { QueryFichesDto } from './dto/query-fiches.dto';
+import { CreateFicheResponseDto } from './dto/create-response.dto';
+import { QueryResponsesDto } from './dto/query-responses.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { 
+  ApiSubmitFicheResponse, 
+  ApiGetFicheResponses,
+  ApiGetFicheResponseById 
+} from './decorators/api-fiches-responses.decorator';
 
 @ApiTags('fiches (CRUD)')
 @Controller('fiches')
- @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 export class FichesController {
   constructor(private readonly svc: FichesService) {}
 
@@ -23,18 +31,29 @@ export class FichesController {
         description: 'Questions simples',
         createdBy: 5,
         questions: [
-          { label: 'Depuis quand as-tu le palu ?', type: 'SELECT', order: 0,
+          { 
+            label: 'Depuis quand as-tu le palu ?', 
+            type: 'SELECT', 
+            order: 0,
+            multiple: true, // 👈 ICI : permet plusieurs choix
             options: [
-              { label:'Un jour', value:'1_jour' },
-              { label:'Deux jours', value:'2_jours' },
-              { label:'Trois jours', value:'3_jours' }
-            ]},
-          { label: 'Autres détails', type: 'TEXT', order: 1 }
+              { label: 'Un jour', value: '1_jour' },
+              { label: 'Deux jours', value: '2_jours' },
+              { label: 'Trois jours', value: '3_jours' }
+            ]
+          },
+          { 
+            label: 'Autres détails', 
+            type: 'TEXT', 
+            order: 1 
+          }
         ]
       }
     }
   })
-  create(@Body() dto: CreateFicheDto) { return this.svc.createFiche(dto); }
+  create(@Body() dto: CreateFicheDto) { 
+    return this.svc.createFiche(dto); 
+  }
 
   @Get()
   @ApiOperation({ summary: 'Lister les fiches (pagination + recherche titre/description)' })
@@ -44,7 +63,9 @@ export class FichesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Lire une fiche (questions + réponses JSON)' })
-  get(@Param('id') id: string) { return this.svc.getFiche(Number(id)); }
+  get(@Param('id') id: string) { 
+    return this.svc.getFiche(Number(id)); 
+  }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Mettre à jour une fiche (remplacement simple des questions si fourni)' })
@@ -52,12 +73,40 @@ export class FichesController {
     return this.svc.updateFiche(Number(id), dto);
   }
 
-   @Delete(':id')
+  @Delete(':id')
   @ApiOperation({
-    summary:
-      'Supprimer une fiche (interdit si des patients ont déjà répondu)',
+    summary: 'Supprimer une fiche (interdit si des patients ont déjà répondu)',
   })
   remove(@Param('id') id: string) {
     return this.svc.deleteFiche(Number(id));
+  }
+
+  // ========== NOUVELLES ROUTES POUR LES RÉPONSES ==========
+  
+  @Post(':id/responses')
+  @ApiSubmitFicheResponse()
+  async submitResponse(
+    @Param('id') id: string,
+    @Body() dto: CreateFicheResponseDto
+  ) {
+    return this.svc.submitResponse(Number(id), dto);
+  }
+
+  @Get(':id/responses')
+  @ApiGetFicheResponses()
+  async getResponses(
+    @Param('id') id: string,
+    @Query() query: QueryResponsesDto
+  ) {
+    return this.svc.getResponses(Number(id), query);
+  }
+
+  @Get(':id/responses/:responseId')
+  @ApiGetFicheResponseById()
+  async getResponseById(
+    @Param('id') id: string,
+    @Param('responseId') responseId: string
+  ) {
+    return this.svc.getResponseById(Number(id), responseId);
   }
 }

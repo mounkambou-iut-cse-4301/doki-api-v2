@@ -1,5 +1,6 @@
+// src/fiches/dto/create-fiche.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum QType { TEXT='TEXT', SELECT='SELECT' }
@@ -13,6 +14,17 @@ class QuestionInput {
   @ApiProperty() @IsString() label: string;
   @ApiProperty({ enum: QType }) @IsEnum(QType) type: QType;
   @ApiProperty({ default: 0 }) @IsOptional() order?: number;
+  
+  // 👇 NOUVEAU : Permet de spécifier si plusieurs réponses sont autorisées (pour SELECT)
+  @ApiProperty({ 
+    description: 'Autoriser plusieurs réponses (pour SELECT uniquement)',
+    default: false,
+    required: false 
+  })
+  @IsOptional()
+  @IsBoolean()
+  multiple?: boolean;
+  
   @ApiProperty({ type: [OptionInput], required: false })
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => OptionInput)
   options?: OptionInput[];

@@ -1,3 +1,4 @@
+// src/fiches/dto/update-fiche.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -15,6 +16,15 @@ class QuestionUpsert {
   @ApiPropertyOptional() @IsOptional() @IsString() label?: string;
   @ApiPropertyOptional({ enum: QType }) @IsOptional() @IsEnum(QType) type?: QType;
   @ApiPropertyOptional() @IsOptional() order?: number;
+  
+  // 👈 NOUVEAU : champ multiple pour les SELECT
+  @ApiPropertyOptional({ 
+    description: 'Autoriser plusieurs réponses (pour SELECT uniquement)',
+    default: false 
+  })
+  @IsOptional()
+  @IsBoolean()
+  multiple?: boolean;
 
   // si fourni => remplacement intégral des options pour cette question
   @ApiPropertyOptional({ type: [OptionUpsert] })

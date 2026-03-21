@@ -7,7 +7,7 @@ CREATE TABLE `User` (
     `email` VARCHAR(191) NOT NULL,
     `phone` VARCHAR(191) NOT NULL,
     `password` VARCHAR(191) NOT NULL,
-    `userType` ENUM('PATIENT', 'MEDECIN', 'ADMIN', 'SUPERADMIN') NOT NULL,
+    `userType` ENUM('PATIENT', 'MEDECIN', 'ADMIN', 'SUPERADMIN', 'HOPITAL') NOT NULL,
     `acceptPrivacy` BOOLEAN NOT NULL DEFAULT false,
     `specialityId` INTEGER NULL,
     `city` VARCHAR(191) NULL,
@@ -31,6 +31,132 @@ CREATE TABLE `User` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `MedecinHopital` (
+    `medecinId` INTEGER NOT NULL,
+    `hopitalId` INTEGER NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`medecinId`, `hopitalId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `GroupePackage` (
+    `packageId` INTEGER NOT NULL AUTO_INCREMENT,
+    `nom` VARCHAR(191) NOT NULL,
+    `specialityId` INTEGER NOT NULL,
+    `nombreConsultations` INTEGER NOT NULL,
+    `chatInclus` BOOLEAN NOT NULL DEFAULT false,
+    `appelInclus` BOOLEAN NOT NULL DEFAULT false,
+    `prix` DECIMAL(10, 2) NOT NULL,
+    `dureeValiditeJours` INTEGER NOT NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `GroupePackage_specialityId_isActive_idx`(`specialityId`, `isActive`),
+    PRIMARY KEY (`packageId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Abonnement` (
+    `abonnementId` INTEGER NOT NULL AUTO_INCREMENT,
+    `medecinId` INTEGER NULL,
+    `patientId` INTEGER NOT NULL,
+    `packageId` INTEGER NULL,
+    `numberOfTimePlanReservation` INTEGER NULL,
+    `status` ENUM('PENDING', 'CONFIRMED') NOT NULL DEFAULT 'PENDING',
+    `debutDate` DATETIME(3) NOT NULL,
+    `endDate` DATETIME(3) NOT NULL,
+    `amount` DECIMAL(10, 2) NULL,
+    `transactionId` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`abonnementId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Planning` (
+    `planningId` INTEGER NOT NULL AUTO_INCREMENT,
+    `debutHour` VARCHAR(191) NOT NULL,
+    `endHour` VARCHAR(191) NOT NULL,
+    `lundi` BOOLEAN NOT NULL DEFAULT false,
+    `mardi` BOOLEAN NOT NULL DEFAULT false,
+    `mercredi` BOOLEAN NOT NULL DEFAULT false,
+    `jeudi` BOOLEAN NOT NULL DEFAULT false,
+    `vendredi` BOOLEAN NOT NULL DEFAULT false,
+    `samedi` BOOLEAN NOT NULL DEFAULT false,
+    `dimanche` BOOLEAN NOT NULL DEFAULT false,
+    `isClosed` BOOLEAN NOT NULL DEFAULT false,
+    `medecinId` INTEGER NOT NULL,
+    `type` ENUM('ONLINE', 'IN_PERSON') NOT NULL DEFAULT 'ONLINE',
+    `hopitalId` INTEGER NULL,
+    `salle` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`planningId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Reservation` (
+    `reservationId` INTEGER NOT NULL AUTO_INCREMENT,
+    `date` VARCHAR(191) NOT NULL,
+    `hour` VARCHAR(191) NOT NULL,
+    `type` ENUM('CALL', 'IN_PERSON') NOT NULL,
+    `patientName` VARCHAR(191) NOT NULL,
+    `sex` ENUM('MALE', 'FEMALE', 'OTHER') NOT NULL,
+    `age` INTEGER NULL,
+    `description` VARCHAR(191) NULL,
+    `medecinId` INTEGER NOT NULL,
+    `patientId` INTEGER NOT NULL,
+    `location` VARCHAR(191) NULL,
+    `amount` DECIMAL(10, 2) NULL,
+    `transactionId` INTEGER NULL,
+    `status` ENUM('PENDING', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
+    `hopitalId` INTEGER NULL,
+    `abonnementId` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`reservationId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Publicite` (
+    `publiciteId` INTEGER NOT NULL AUTO_INCREMENT,
+    `annonceurType` ENUM('MEDECIN', 'HOPITAL') NOT NULL,
+    `annonceurId` INTEGER NOT NULL,
+    `typeContenu` ENUM('VIDEO', 'IMAGE') NOT NULL,
+    `urlContenu` VARCHAR(191) NOT NULL,
+    `titre` VARCHAR(191) NOT NULL,
+    `description` VARCHAR(191) NULL,
+    `dateDebut` DATETIME(3) NOT NULL,
+    `dateFin` DATETIME(3) NOT NULL,
+    `statut` ENUM('PENDING_VALIDATION', 'ACTIVE', 'TERMINATED', 'REJECTED') NOT NULL DEFAULT 'PENDING_VALIDATION',
+    `montant` DECIMAL(10, 2) NOT NULL,
+    `transactionId` INTEGER NULL,
+    `adminValidatorId` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`publiciteId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Transaction` (
+    `transactionId` INTEGER NOT NULL AUTO_INCREMENT,
+    `paymentId` VARCHAR(191) NULL,
+    `status` ENUM('PENDING', 'PAID', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
+    `amount` DECIMAL(10, 2) NOT NULL,
+    `type` ENUM('RESERVATION', 'ABONNEMENT', 'PUBLICITE') NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`transactionId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Conversation` (
     `conversationId` INTEGER NOT NULL AUTO_INCREMENT,
     `medecinId` INTEGER NOT NULL,
@@ -39,8 +165,6 @@ CREATE TABLE `Conversation` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Conversation_medecinId_idx`(`medecinId`),
-    INDEX `Conversation_patientId_idx`(`patientId`),
     UNIQUE INDEX `Conversation_medecinId_patientId_key`(`medecinId`, `patientId`),
     PRIMARY KEY (`conversationId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -61,10 +185,6 @@ CREATE TABLE `Message` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Message_conversationId_createdAt_idx`(`conversationId`, `createdAt`),
-    INDEX `Message_receiverId_isRead_idx`(`receiverId`, `isRead`),
-    INDEX `Message_casId_createdAt_idx`(`casId`, `createdAt`),
-    INDEX `Message_ficheId_idx`(`ficheId`),
     PRIMARY KEY (`messageId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -88,7 +208,6 @@ CREATE TABLE `CasReadState` (
     `userId` INTEGER NOT NULL,
     `lastReadAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `CasReadState_userId_idx`(`userId`),
     UNIQUE INDEX `CasReadState_casId_userId_key`(`casId`, `userId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -105,7 +224,6 @@ CREATE TABLE `Fiche` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Fiche_createdBy_isActive_idx`(`createdBy`, `isActive`),
     PRIMARY KEY (`ficheId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -119,7 +237,6 @@ CREATE TABLE `Notification` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Notification_userId_isRead_createdAt_idx`(`userId`, `isRead`, `createdAt`),
     PRIMARY KEY (`notificationId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -173,8 +290,6 @@ CREATE TABLE `Video` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Video_medecinId_idx`(`medecinId`),
-    INDEX `Video_categoryId_idx`(`categoryId`),
     PRIMARY KEY (`videoId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -192,65 +307,6 @@ CREATE TABLE `CategoryVideo` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `Planning` (
-    `planningId` INTEGER NOT NULL AUTO_INCREMENT,
-    `debutHour` VARCHAR(191) NOT NULL,
-    `endHour` VARCHAR(191) NOT NULL,
-    `lundi` BOOLEAN NOT NULL DEFAULT false,
-    `mardi` BOOLEAN NOT NULL DEFAULT false,
-    `mercredi` BOOLEAN NOT NULL DEFAULT false,
-    `jeudi` BOOLEAN NOT NULL DEFAULT false,
-    `vendredi` BOOLEAN NOT NULL DEFAULT false,
-    `samedi` BOOLEAN NOT NULL DEFAULT false,
-    `dimanche` BOOLEAN NOT NULL DEFAULT false,
-    `isClosed` BOOLEAN NOT NULL DEFAULT false,
-    `medecinId` INTEGER NOT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    PRIMARY KEY (`planningId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `Abonnement` (
-    `abonnementId` INTEGER NOT NULL AUTO_INCREMENT,
-    `medecinId` INTEGER NOT NULL,
-    `patientId` INTEGER NOT NULL,
-    `numberOfTimePlanReservation` INTEGER NOT NULL,
-    `status` ENUM('PENDING', 'CONFIRMED') NOT NULL DEFAULT 'PENDING',
-    `debutDate` DATETIME(3) NOT NULL,
-    `endDate` DATETIME(3) NOT NULL,
-    `amount` DECIMAL(10, 2) NULL,
-    `transactionId` INTEGER NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    PRIMARY KEY (`abonnementId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `Reservation` (
-    `reservationId` INTEGER NOT NULL AUTO_INCREMENT,
-    `date` VARCHAR(191) NOT NULL,
-    `hour` VARCHAR(191) NOT NULL,
-    `type` ENUM('CALL', 'IN_PERSON') NOT NULL,
-    `patientName` VARCHAR(191) NOT NULL,
-    `sex` ENUM('MALE', 'FEMALE', 'OTHER') NOT NULL,
-    `age` INTEGER NULL,
-    `description` VARCHAR(191) NULL,
-    `medecinId` INTEGER NOT NULL,
-    `patientId` INTEGER NOT NULL,
-    `location` VARCHAR(191) NULL,
-    `amount` DECIMAL(10, 2) NULL,
-    `transactionId` INTEGER NULL,
-    `status` ENUM('PENDING', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    PRIMARY KEY (`reservationId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `SoldeMedecin` (
     `soldeMedecinId` INTEGER NOT NULL AUTO_INCREMENT,
     `solde` DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -259,19 +315,6 @@ CREATE TABLE `SoldeMedecin` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     PRIMARY KEY (`soldeMedecinId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `Transaction` (
-    `transactionId` INTEGER NOT NULL AUTO_INCREMENT,
-    `paymentId` VARCHAR(191) NULL,
-    `status` ENUM('PENDING', 'PAID', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
-    `amount` DECIMAL(10, 2) NOT NULL,
-    `type` ENUM('RESERVATION', 'ABONNEMENT') NOT NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    PRIMARY KEY (`transactionId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -290,20 +333,6 @@ CREATE TABLE `Ordonance` (
 
     UNIQUE INDEX `Ordonance_reservationId_key`(`reservationId`),
     PRIMARY KEY (`ordonanceId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `ProtocoleOrdonance` (
-    `protocoleId` INTEGER NOT NULL AUTO_INCREMENT,
-    `name` VARCHAR(255) NOT NULL,
-    `description` VARCHAR(500) NULL,
-    `traitement` JSON NOT NULL,
-    `images` JSON NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `ProtocoleOrdonance_name_key`(`name`),
-    PRIMARY KEY (`protocoleId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -339,24 +368,22 @@ CREATE TABLE `PasswordReset` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `PasswordReset_email_idx`(`email`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `categories` (
+CREATE TABLE `Category` (
     `categoryId` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `description` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `categories_name_idx`(`name`),
     PRIMARY KEY (`categoryId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `formations_continue` (
+CREATE TABLE `FormationContinue` (
     `formationId` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(191) NOT NULL,
     `categoryId` INTEGER NULL,
@@ -366,12 +393,11 @@ CREATE TABLE `formations_continue` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `formations_continue_categoryId_name_idx`(`categoryId`, `name`),
     PRIMARY KEY (`formationId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `lessons` (
+CREATE TABLE `Lesson` (
     `lessonId` INTEGER NOT NULL AUTO_INCREMENT,
     `title` VARCHAR(191) NOT NULL,
     `description` VARCHAR(191) NULL,
@@ -382,7 +408,6 @@ CREATE TABLE `lessons` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `lessons_formationId_orderIndex_idx`(`formationId`, `orderIndex`),
     PRIMARY KEY (`lessonId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -397,17 +422,119 @@ CREATE TABLE `Role` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `Permission` (
+    `permissionId` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(191) NOT NULL,
+    `description` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `Permission_name_key`(`name`),
+    PRIMARY KEY (`permissionId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `RolePermission` (
+    `roleId` INTEGER NOT NULL,
+    `permissionId` INTEGER NOT NULL,
+    `assignedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (`roleId`, `permissionId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `UserRole` (
     `userId` INTEGER NOT NULL,
     `roleId` INTEGER NOT NULL,
     `assignedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `UserRole_roleId_idx`(`roleId`),
     PRIMARY KEY (`userId`, `roleId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Medicament` (
+    `medicamentId` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(191) NOT NULL,
+    `nameCommercial` VARCHAR(191) NULL,
+    `nameLabo` VARCHAR(191) NULL,
+    `dosage` VARCHAR(191) NULL,
+    `forme` VARCHAR(191) NULL,
+    `voie` VARCHAR(191) NULL,
+    `posologie` VARCHAR(191) NULL,
+    `comment` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`medicamentId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ProtocoleOrdonance` (
+    `protocoleId` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(255) NOT NULL,
+    `description` VARCHAR(500) NULL,
+    `traitement` JSON NOT NULL,
+    `images` JSON NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `ProtocoleOrdonance_name_key`(`name`),
+    PRIMARY KEY (`protocoleId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
 ALTER TABLE `User` ADD CONSTRAINT `User_specialityId_fkey` FOREIGN KEY (`specialityId`) REFERENCES `Speciality`(`specialityId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MedecinHopital` ADD CONSTRAINT `MedecinHopital_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `MedecinHopital` ADD CONSTRAINT `MedecinHopital_hopitalId_fkey` FOREIGN KEY (`hopitalId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GroupePackage` ADD CONSTRAINT `GroupePackage_specialityId_fkey` FOREIGN KEY (`specialityId`) REFERENCES `Speciality`(`specialityId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_patientId_fkey` FOREIGN KEY (`patientId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`transactionId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_packageId_fkey` FOREIGN KEY (`packageId`) REFERENCES `GroupePackage`(`packageId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Planning` ADD CONSTRAINT `Planning_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Planning` ADD CONSTRAINT `Planning_hopitalId_fkey` FOREIGN KEY (`hopitalId`) REFERENCES `User`(`userId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_patientId_fkey` FOREIGN KEY (`patientId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`transactionId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_hopitalId_fkey` FOREIGN KEY (`hopitalId`) REFERENCES `User`(`userId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_abonnementId_fkey` FOREIGN KEY (`abonnementId`) REFERENCES `Abonnement`(`abonnementId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Publicite` ADD CONSTRAINT `Publicite_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`transactionId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Publicite` ADD CONSTRAINT `Publicite_adminValidatorId_fkey` FOREIGN KEY (`adminValidatorId`) REFERENCES `User`(`userId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Publicite` ADD CONSTRAINT `Publicite_annonceurId_fkey` FOREIGN KEY (`annonceurId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Conversation` ADD CONSTRAINT `Conversation_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -464,27 +591,6 @@ ALTER TABLE `Video` ADD CONSTRAINT `Video_medecinId_fkey` FOREIGN KEY (`medecinI
 ALTER TABLE `Video` ADD CONSTRAINT `Video_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `CategoryVideo`(`categoryId`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Planning` ADD CONSTRAINT `Planning_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_patientId_fkey` FOREIGN KEY (`patientId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Abonnement` ADD CONSTRAINT `Abonnement_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`transactionId`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_patientId_fkey` FOREIGN KEY (`patientId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Reservation` ADD CONSTRAINT `Reservation_transactionId_fkey` FOREIGN KEY (`transactionId`) REFERENCES `Transaction`(`transactionId`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE `SoldeMedecin` ADD CONSTRAINT `SoldeMedecin_medecinId_fkey` FOREIGN KEY (`medecinId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -506,13 +612,19 @@ ALTER TABLE `Suivi` ADD CONSTRAINT `Suivi_ordonanceId_fkey` FOREIGN KEY (`ordona
 ALTER TABLE `PasswordReset` ADD CONSTRAINT `PasswordReset_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `formations_continue` ADD CONSTRAINT `formations_continue_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `categories`(`categoryId`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `FormationContinue` ADD CONSTRAINT `FormationContinue_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `Category`(`categoryId`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `lessons` ADD CONSTRAINT `lessons_formationId_fkey` FOREIGN KEY (`formationId`) REFERENCES `formations_continue`(`formationId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `Lesson` ADD CONSTRAINT `Lesson_formationId_fkey` FOREIGN KEY (`formationId`) REFERENCES `FormationContinue`(`formationId`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `lessons` ADD CONSTRAINT `lessons_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `categories`(`categoryId`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Lesson` ADD CONSTRAINT `Lesson_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `Category`(`categoryId`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `RolePermission` ADD CONSTRAINT `RolePermission_roleId_fkey` FOREIGN KEY (`roleId`) REFERENCES `Role`(`roleId`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `RolePermission` ADD CONSTRAINT `RolePermission_permissionId_fkey` FOREIGN KEY (`permissionId`) REFERENCES `Permission`(`permissionId`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `UserRole` ADD CONSTRAINT `UserRole_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`userId`) ON DELETE RESTRICT ON UPDATE CASCADE;

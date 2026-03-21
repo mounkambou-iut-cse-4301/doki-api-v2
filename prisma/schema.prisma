@@ -1,3 +1,561 @@
+// // prisma/schema.prisma
+// generator client {
+//   provider = "prisma-client-js"
+//   output   = "../generated/prisma"
+// }
+
+// datasource db {
+//   provider          = "mysql"
+//   url               = env("DATABASE_URL")
+//   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+// }
+
+// /* ========== Enums existants ========== */
+// enum Sex {
+//   MALE
+//   FEMALE
+//   OTHER
+// }
+
+// enum UserType {
+//   PATIENT
+//   MEDECIN
+//   ADMIN
+//   SUPERADMIN
+// }
+
+// enum ReservationType {
+//   CALL
+//   IN_PERSON
+// }
+
+// enum ReservationStatus {
+//   PENDING
+//   COMPLETED
+//   CANCELLED
+// }
+
+// enum AbonnementStatus {
+//   PENDING
+//   CONFIRMED
+// }
+
+// enum TransactionStatus {
+//   PENDING
+//   PAID
+//   CANCELLED
+// }
+
+// enum TransactionType {
+//   RESERVATION
+//   ABONNEMENT
+// }
+
+// enum MessageKind {
+//   TEXT
+//   IMAGE
+//   FILE
+//   SYSTEM
+//   FICHE_REQUEST   // DM uniquement (message de demande)
+//   FICHE_RESPONSE  // DM uniquement (message d'accusé / lien vers la réponse JSON stockée dans Fiche)
+// }
+
+// /* ========== MODELS ========== */
+
+// model User {
+//   userId        Int      @id @default(autoincrement())
+//   firstName     String
+//   lastName      String
+//   sex           Sex
+//   email         String   @unique
+//   phone         String   @unique
+//   password      String
+//   userType      UserType
+//   acceptPrivacy Boolean  @default(false)
+//   specialityId  Int?
+//   city          String?
+//   address       String?
+//   addressHosp   String?
+//   hospitalName  String?
+//   longitude     Decimal? @db.Decimal(10, 8)
+//   latitude      Decimal? @db.Decimal(10, 8)
+//   profile       String?
+//   weight        Decimal? @db.Decimal(5, 2)
+//   matricule     String?
+//   expotoken     String?  @db.VarChar(255)
+//   isBlock       Boolean  @default(false)
+//   isVerified    Boolean  @default(false)
+//   createdAt     DateTime @default(now())
+//   updatedAt     DateTime @updatedAt
+
+//   speciality    Speciality?    @relation(fields: [specialityId], references: [specialityId])
+
+//   /* Relations métier existantes */
+//   feedbacksMed  Feedback[]     @relation("MedecinFeedbacks")
+//   feedbacksPat  Feedback[]     @relation("PatientFeedbacks")
+//   favoritesMed  Favorite[]     @relation("MedecinFavorites")
+//   favoritesPat  Favorite[]     @relation("PatientFavorites")
+//   videos        Video[]
+//   reservationsM Reservation[]  @relation("MedecinReservations")
+//   reservationsP Reservation[]  @relation("PatientReservations")
+//   plannings     Planning[]
+//   abonnementsM  Abonnement[]   @relation("MedecinAbonnements")
+//   abonnementsP  Abonnement[]   @relation("PatientAbonnements")
+//   ordonnancesM  Ordonance[]    @relation("MedecinOrdonnances")
+//   ordonnancesP  Ordonance[]    @relation("PatientOrdonnances")
+//   soldes        SoldeMedecin[]
+
+//   PasswordReset PasswordReset[]
+//   Notification  Notification[]
+//   Suivi         Suivi[]
+
+//   /* DM */
+//   conversationsMed Conversation[] @relation("MedecinConversations")
+//   conversationsPat Conversation[] @relation("PatientConversations")
+//   messagesSent     Message[]      @relation("MessageSender")
+//   messagesReceived Message[]      @relation("MessageReceiver")
+
+//   /* Cas difficiles (curseurs de lecture) */
+//   casReads CasReadState[]
+
+//   /* Cas difficiles créés */
+//   casCreees                CasDifficile[]    @relation("CasDifficileCreator")
+
+//   Fiche Fiche[]
+//   roles UserRole[]
+// }
+
+// model Conversation {
+//   conversationId Int      @id @default(autoincrement())
+//   medecinId      Int
+//   patientId      Int
+//   lastMessageAt  DateTime @default(now())
+//   createdAt      DateTime @default(now())
+//   updatedAt      DateTime @updatedAt
+
+//   medecin  User @relation("MedecinConversations", fields: [medecinId], references: [userId])
+//   patient  User @relation("PatientConversations", fields: [patientId], references: [userId])
+//   messages Message[]
+
+//   @@unique([medecinId, patientId])
+//   @@index([medecinId])
+//   @@index([patientId])
+// }
+
+// model Message {
+//   messageId       Int          @id @default(autoincrement())
+//   kind            MessageKind  @default(TEXT)
+//   conversationId  Int?
+//   casId           Int?
+//   senderId        Int
+//   receiverId      Int?
+//   content         String?
+//   meta            Json?
+//   ficheId         Int?         // pointer vers Fiche pour les DEMANDES (FICHE_REQUEST)
+//   isRead          Boolean      @default(false)
+//   isAnonymous     Boolean      @default(false)
+//   createdAt       DateTime     @default(now())
+//   updatedAt       DateTime     @updatedAt
+
+//   conversation   Conversation?    @relation(fields: [conversationId], references: [conversationId])
+//   cas            CasDifficile?    @relation(fields: [casId], references: [casId])
+
+//   sender         User             @relation("MessageSender",   fields: [senderId],   references: [userId])
+//   receiver       User?            @relation("MessageReceiver", fields: [receiverId], references: [userId])
+
+//   fiche          Fiche?           @relation(fields: [ficheId], references: [ficheId])
+
+//   @@index([conversationId, createdAt])
+//   @@index([receiverId, isRead])
+//   @@index([casId, createdAt])
+//   @@index([ficheId])
+// }
+
+// /* ===== Cas difficiles ===== */
+// model CasDifficile {
+//   casId       Int      @id @default(autoincrement())
+//   name        String
+//   description String?
+//   diseaseCode String?
+//   createdBy   Int
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+
+//   creator  User     @relation("CasDifficileCreator", fields: [createdBy], references: [userId])
+//   messages Message[]
+//   reads    CasReadState[]
+// }
+
+// model CasReadState {
+//   id         Int      @id @default(autoincrement())
+//   casId      Int
+//   userId     Int
+//   lastReadAt DateTime @default(now())
+
+//   cas  CasDifficile @relation(fields: [casId], references: [casId])
+//   user User         @relation(fields: [userId], references: [userId])
+
+//   @@unique([casId, userId])
+//   @@index([userId])
+// }
+
+// /* ===== Nouvelle table unique Fiche (questions + réponses en JSON) ===== */
+// model Fiche {
+//   ficheId     Int      @id @default(autoincrement())
+//   title       String
+//   description String?
+//   createdBy   Int
+//   isActive    Boolean  @default(true)
+
+//   // Définition
+//   questions   Json     // Array<Question>
+
+//   // Collecte des réponses (append-only)
+//   responses   Json     // Array<Response>
+
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+
+//   creator     User     @relation(fields: [createdBy], references: [userId])
+//   requests    Message[] // messages FICHE_REQUEST pointant vers cette Fiche
+
+//   @@index([createdBy, isActive])
+// }
+
+// /* ===== Reste de tes modèles “métier” inchangés ===== */
+
+// model Notification {
+//   notificationId Int      @id @default(autoincrement())
+//   title          String
+//   message        String
+//   isRead         Boolean  @default(false)
+//   userId         Int
+//   createdAt      DateTime @default(now())
+//   updatedAt      DateTime @updatedAt
+//   user User @relation(fields: [userId], references: [userId])
+//   @@index([userId, isRead, createdAt])
+// }
+
+// model Speciality {
+//   specialityId                Int      @id @default(autoincrement())
+//   name                        String
+//   consultationPrice           Decimal  @db.Decimal(10, 2)
+//   consultationDuration        Int
+//   planMonthAmount             Decimal  @db.Decimal(10, 2)
+//   numberOfTimePlanReservation Int
+//   createdAt                   DateTime @default(now())
+//   updatedAt                   DateTime @updatedAt
+//   users                       User[]
+// }
+
+// model Feedback {
+//   feedbackId Int      @id @default(autoincrement())
+//   medecinId  Int
+//   patientId  Int
+//   note       Int
+//   comment    String?
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+
+//   medecin User @relation("MedecinFeedbacks", fields: [medecinId], references: [userId])
+//   patient User @relation("PatientFeedbacks", fields: [patientId], references: [userId])
+// }
+
+// model Favorite {
+//   favoriteId Int      @id @default(autoincrement())
+//   medecinId  Int
+//   patientId  Int
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+
+//   medecin User @relation("MedecinFavorites", fields: [medecinId], references: [userId])
+//   patient User @relation("PatientFavorites", fields: [patientId], references: [userId])
+// }
+
+// model Video {
+//   videoId     Int      @id @default(autoincrement())
+//   title       String
+//   path        String
+//   description String?
+//   categoryId  Int?
+//   medecinId   Int
+//   duree        String?
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+
+//   medecin  User           @relation(fields: [medecinId], references: [userId])
+//   category CategoryVideo? @relation(fields: [categoryId], references: [categoryId])
+
+//   @@index([medecinId])
+//   @@index([categoryId])
+// }
+
+// model CategoryVideo {
+//   categoryId  Int      @id @default(autoincrement())
+//   name        String   @unique
+//   description String?
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+// coverImage  String?
+//   videos      Video[]
+// }
+
+
+// model Planning {
+//   planningId Int      @id @default(autoincrement())
+//   debutHour  String
+//   endHour    String
+//   lundi      Boolean  @default(false)
+//   mardi      Boolean  @default(false)
+//   mercredi   Boolean  @default(false)
+//   jeudi      Boolean  @default(false)
+//   vendredi   Boolean  @default(false)
+//   samedi     Boolean  @default(false)
+//   dimanche   Boolean  @default(false)
+//   isClosed   Boolean  @default(false)
+//   medecinId  Int
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+//   medecin User @relation(fields: [medecinId], references: [userId])
+// }
+
+// model Abonnement {
+//   abonnementId                Int @id @default(autoincrement())
+//   medecinId                   Int
+//   patientId                   Int
+//   numberOfTimePlanReservation Int
+//   status        AbonnementStatus @default(PENDING)
+//   debutDate     DateTime
+//   endDate       DateTime
+//   amount        Decimal?         @db.Decimal(10, 2)
+//   transactionId Int?
+//   createdAt     DateTime @default(now())
+//   updatedAt     DateTime @updatedAt
+
+//   medecin     User         @relation("MedecinAbonnements", fields: [medecinId], references: [userId])
+//   patient     User         @relation("PatientAbonnements", fields: [patientId], references: [userId])
+//   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+// }
+
+// model Reservation {
+//   reservationId Int               @id @default(autoincrement())
+//   date          String
+//   hour          String
+//   type          ReservationType
+//   patientName   String
+//   sex           Sex
+//   age           Int?
+//   description   String?
+//   medecinId     Int
+//   patientId     Int
+//   location      String?
+//   amount        Decimal?          @db.Decimal(10, 2)
+//   transactionId Int?
+//   status        ReservationStatus @default(PENDING)
+//   createdAt     DateTime @default(now())
+//   updatedAt     DateTime @updatedAt
+
+//   medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
+//   patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
+//   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+//   ordonance   Ordonance?   @relation("ReservationOrdonnances")
+// }
+
+// model SoldeMedecin {
+//   soldeMedecinId Int      @id @default(autoincrement())
+//   solde          Decimal  @default(0) @db.Decimal(10, 2)
+//   medecinId      Int
+//   createdAt      DateTime @default(now())
+//   updatedAt      DateTime @updatedAt
+//   medecin User @relation(fields: [medecinId], references: [userId])
+// }
+
+// model Transaction {
+//   transactionId Int               @id @default(autoincrement())
+//   paymentId     String?
+//   status        TransactionStatus @default(PENDING)
+//   amount        Decimal           @db.Decimal(10, 2)
+//   type          TransactionType
+//   createdAt     DateTime @default(now())
+//   updatedAt     DateTime @updatedAt
+
+//   abonnements  Abonnement[]
+//   reservations Reservation[]
+// }
+
+// model Ordonance {
+//   ordonanceId     Int      @id @default(autoincrement())
+//   name            String?  @db.VarChar(255)   // 👈 NEW
+//   dureeTraitement String?  @db.VarChar(100)
+//   traitement      Json?
+//   comment         String?
+//   medecinId       Int
+//   patientId       Int
+//   images          Json?
+//   reservationId   Int      @unique
+//   createdAt       DateTime @default(now())
+//   updatedAt       DateTime @updatedAt
+
+//   medecin     User        @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
+//   patient     User        @relation("PatientOrdonnances", fields: [patientId], references: [userId])
+//   reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
+
+//   Suivi Suivi[]
+// }
+
+// model ProtocoleOrdonance {
+//   protocoleId Int      @id @default(autoincrement())
+//   name        String   @unique @db.VarChar(255)  // nom de la maladie (ex: paludisme)
+//   description String?  @db.VarChar(500)
+//   traitement  Json                           // array<TreatmentItem>
+//   images      Json?                          // optionnel (schéma identique à Ordonance.images)
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+// }
+
+// model Medicament {
+//   medicamentId Int     @id @default(autoincrement())
+//   name         String
+//   nameCommercial String?
+//   nameLabo    String?
+//   dosage       String?
+//   forme        String?
+//   voie         String?
+//   posologie    String?
+//   comment      String?
+
+//   createdAt    DateTime @default(now())
+//   updatedAt    DateTime @updatedAt
+// }
+
+
+// model Suivi {
+//  suiviId         Int       @id @default(autoincrement())
+//   name            String     // Name of the medication
+//   dosage          String?    // Dosage (e.g. "500mg")
+//   posologie       String?    // Posology or usage instructions
+//   forme           String?    // Form (e.g. tablet, liquid)
+//   voie            String?    // Route of administration
+//   instructions    String?    // Specific instructions (e.g. "Before meals")
+//   startDate       DateTime   // Start date of the treatment
+//   endDate         DateTime   // End date of the treatment
+//   frequency       Json      // Frequency object (JSON)
+//   notificationTimes Json      // Times for notifications (e.g. ["08:00", "13:00"])
+//   isActive        Boolean    @default(true) // Indicates if the suivi is active
+//   createdAt       DateTime   @default(now()) // Date of creation
+//   updatedAt       DateTime   @updatedAt    // Date of last update
+
+//   patientId       Int    // ID of the associated patient
+//   ordonanceId     Int?   // Optional ID of the associated ordonnance
+  
+//   patient         User      @relation(fields: [patientId], references: [userId])
+//   ordonnance      Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
+// }
+
+// model PasswordReset {
+//   id        Int      @id @default(autoincrement())
+//   userId    Int
+//   email     String
+//   otpHash   String
+//   expiresAt DateTime
+//   usedAt    DateTime?
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+//   user      User     @relation(fields: [userId], references: [userId])
+//   @@index([email])
+// }
+
+// model Category {
+//   categoryId  Int      @id @default(autoincrement())
+//   name        String
+//   description String?
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+//   formations  FormationContinue[]
+//   Lesson      Lesson[]
+
+//   @@index([name])
+//   @@map("categories")
+// }
+
+// model FormationContinue {
+//   formationId Int      @id @default(autoincrement())
+//   name        String
+//   categoryId  Int?
+//   competence  String
+//   dureeHeures Int
+//   comment     String?
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+
+//   category Category? @relation(fields: [categoryId], references: [categoryId])
+//   lessons  Lesson[]
+
+//   @@index([categoryId, name])
+//   @@map("formations_continue")
+// }
+
+// model Lesson {
+//   lessonId    Int      @id @default(autoincrement())
+//   title       String
+//   description String?
+//   categoryId  Int?
+//   fileUrl     String?
+//   orderIndex  Int?
+//   formationId Int
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+
+//   formation FormationContinue @relation(fields: [formationId], references: [formationId])
+//   category  Category?         @relation(fields: [categoryId], references: [categoryId])
+
+//   @@index([formationId, orderIndex])
+//   @@map("lessons")
+// }
+
+// model Role {
+//   roleId      Int        @id @default(autoincrement())
+//   name        String     @unique      // ex: 'SUPERADMIN', 'MANAGE_PATIENT'
+//   description String?
+//   users       UserRole[]
+//   permissions RolePermission[]
+// }
+// model Permission {
+//   permissionId Int      @id @default(autoincrement())
+//   name         String   @unique // TOUJOURS en MAJUSCULE sans accents (normalisé côté service)
+//   description  String?
+//   createdAt    DateTime @default(now())
+//   updatedAt    DateTime @updatedAt
+
+//   roles RolePermission[]
+
+//   @@index([name])
+// }
+
+// model RolePermission {
+//   roleId       Int
+//   permissionId Int
+//   assignedAt   DateTime @default(now())
+
+//   role       Role       @relation(fields: [roleId], references: [roleId])
+//   permission Permission @relation(fields: [permissionId], references: [permissionId])
+
+//   @@id([roleId, permissionId])
+//   @@index([permissionId])
+// }
+
+// model UserRole {
+//   userId     Int
+//   roleId     Int
+//   assignedAt DateTime @default(now())
+
+//   user User @relation(fields: [userId], references: [userId])
+//   role Role @relation(fields: [roleId], references: [roleId])
+
+//   @@id([userId, roleId])
+//   @@index([roleId])
+// }
+
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
@@ -10,7 +568,7 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-/* ========== Enums existants ========== */
+/* ========== Enums ========== */
 enum Sex {
   MALE
   FEMALE
@@ -22,6 +580,7 @@ enum UserType {
   MEDECIN
   ADMIN
   SUPERADMIN
+  HOPITAL
 }
 
 enum ReservationType {
@@ -49,6 +608,7 @@ enum TransactionStatus {
 enum TransactionType {
   RESERVATION
   ABONNEMENT
+  PUBLICITE
 }
 
 enum MessageKind {
@@ -56,8 +616,30 @@ enum MessageKind {
   IMAGE
   FILE
   SYSTEM
-  FICHE_REQUEST   // DM uniquement (message de demande)
-  FICHE_RESPONSE  // DM uniquement (message d'accusé / lien vers la réponse JSON stockée dans Fiche)
+  FICHE_REQUEST
+  FICHE_RESPONSE
+}
+
+enum PlanningType {
+  ONLINE
+  IN_PERSON
+}
+
+enum AdvertiserType {
+  MEDECIN
+  HOPITAL
+}
+
+enum ContentType {
+  VIDEO
+  IMAGE
+}
+
+enum PubliciteStatus {
+  PENDING_VALIDATION
+  ACTIVE
+  TERMINATED
+  REJECTED
 }
 
 /* ========== MODELS ========== */
@@ -90,7 +672,7 @@ model User {
 
   speciality    Speciality?    @relation(fields: [specialityId], references: [specialityId])
 
-  /* Relations métier existantes */
+  /* Relations existantes */
   feedbacksMed  Feedback[]     @relation("MedecinFeedbacks")
   feedbacksPat  Feedback[]     @relation("PatientFeedbacks")
   favoritesMed  Favorite[]     @relation("MedecinFavorites")
@@ -100,7 +682,7 @@ model User {
   reservationsP Reservation[]  @relation("PatientReservations")
   plannings     Planning[]
   abonnementsM  Abonnement[]   @relation("MedecinAbonnements")
-  abonnementsP  Abonnement[]   @relation("PatientAbonnements")
+  abonnementsP  Abonnement[]   @relation("PatientAbonnements")  // ← Remis
   ordonnancesM  Ordonance[]    @relation("MedecinOrdonnances")
   ordonnancesP  Ordonance[]    @relation("PatientOrdonnances")
   soldes        SoldeMedecin[]
@@ -109,21 +691,170 @@ model User {
   Notification  Notification[]
   Suivi         Suivi[]
 
-  /* DM */
   conversationsMed Conversation[] @relation("MedecinConversations")
   conversationsPat Conversation[] @relation("PatientConversations")
   messagesSent     Message[]      @relation("MessageSender")
   messagesReceived Message[]      @relation("MessageReceiver")
 
-  /* Cas difficiles (curseurs de lecture) */
   casReads CasReadState[]
-
-  /* Cas difficiles créés */
   casCreees                CasDifficile[]    @relation("CasDifficileCreator")
-
   Fiche Fiche[]
   roles UserRole[]
+  
+  // V2: Relations pour les hôpitaux (userType = HOPITAL)
+  medecinsAffilies   MedecinHopital[] @relation("HopitalAffiliations")
+  hopitalAffiliations MedecinHopital[] @relation("MedecinAffiliations")
+  planningsHopital   Planning[]       @relation("HopitalPlannings")
+  reservationsHopital Reservation[]   @relation("HopitalReservations")
+  publicitesAnnonceur Publicite[]      @relation("UserPublicites")
+  publicitesValidees  Publicite[]      @relation("PubliciteValidator")
 }
+
+// V2: Table de liaison pour l'affiliation médecin-hôpital
+model MedecinHopital {
+  medecinId   Int
+  hopitalId   Int
+  createdAt   DateTime @default(now())
+
+  medecin User @relation("MedecinAffiliations", fields: [medecinId], references: [userId])
+  hopital User @relation("HopitalAffiliations", fields: [hopitalId], references: [userId])
+
+  @@id([medecinId, hopitalId])
+}
+
+// V2: Package d'abonnement par spécialité (simplifié)
+model GroupePackage {
+  packageId             Int      @id @default(autoincrement())
+  nom                   String   
+  specialityId          Int      
+  nombreConsultations   Int      
+  chatInclus            Boolean  @default(false)
+  appelInclus           Boolean  @default(false)
+  prix                  Decimal  @db.Decimal(10, 2)
+  dureeValiditeJours    Int      
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  speciality Speciality @relation(fields: [specialityId], references: [specialityId])
+  abonnements Abonnement[]
+
+  @@index([specialityId, isActive])
+}
+
+// V2: Abonnement étendu
+model Abonnement {
+  abonnementId      Int              @id @default(autoincrement())
+  medecinId         Int?             
+  patientId         Int
+  packageId         Int?             // Si non null, c'est un abonnement groupe
+  numberOfTimePlanReservation Int?   
+  status            AbonnementStatus @default(PENDING)
+  debutDate         DateTime
+  endDate           DateTime
+  amount            Decimal?         @db.Decimal(10, 2)
+  transactionId     Int?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  medecin     User?           @relation("MedecinAbonnements", fields: [medecinId], references: [userId])
+  patient     User            @relation("PatientAbonnements", fields: [patientId], references: [userId])
+  transaction Transaction?    @relation(fields: [transactionId], references: [transactionId])
+  package     GroupePackage?  @relation(fields: [packageId], references: [packageId])
+  reservations Reservation[]
+}
+
+// V2: Planning avec type et hopital
+model Planning {
+  planningId Int          @id @default(autoincrement())
+  debutHour  String
+  endHour    String
+  lundi      Boolean      @default(false)
+  mardi      Boolean      @default(false)
+  mercredi   Boolean      @default(false)
+  jeudi      Boolean      @default(false)
+  vendredi   Boolean      @default(false)
+  samedi     Boolean      @default(false)
+  dimanche   Boolean      @default(false)
+  isClosed   Boolean      @default(false)
+  medecinId  Int
+  type       PlanningType @default(ONLINE)
+  hopitalId  Int?         
+  salle      String?      
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  medecin User    @relation(fields: [medecinId], references: [userId])
+  hopital User?   @relation("HopitalPlannings", fields: [hopitalId], references: [userId])
+}
+
+// V2: Reservation avec hopital et abonnement
+model Reservation {
+  reservationId Int               @id @default(autoincrement())
+  date          String
+  hour          String
+  type          ReservationType
+  patientName   String
+  sex           Sex
+  age           Int?
+  description   String?
+  medecinId     Int
+  patientId     Int
+  location      String?
+  amount        Decimal?          @db.Decimal(10, 2)
+  transactionId Int?
+  status        ReservationStatus @default(PENDING)
+  hopitalId     Int?              
+  abonnementId  Int?              
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
+  patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
+  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+  ordonance   Ordonance?   @relation("ReservationOrdonnances")
+  hopital     User?        @relation("HopitalReservations", fields: [hopitalId], references: [userId])
+  abonnement  Abonnement?  @relation(fields: [abonnementId], references: [abonnementId])
+}
+
+// V2: Publicité
+model Publicite {
+  publiciteId       Int              @id @default(autoincrement())
+  annonceurType     AdvertiserType
+  annonceurId       Int              
+  typeContenu       ContentType
+  urlContenu        String           
+  titre             String
+  description       String?
+  dateDebut         DateTime
+  dateFin           DateTime
+  statut            PubliciteStatus  @default(PENDING_VALIDATION)
+  montant           Decimal          @db.Decimal(10, 2)
+  transactionId     Int?
+  adminValidatorId  Int?          
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  transaction Transaction?              @relation(fields: [transactionId], references: [transactionId])
+  validator   User?                     @relation("PubliciteValidator", fields: [adminValidatorId], references: [userId])
+  annonceur   User?                     @relation("UserPublicites", fields: [annonceurId], references: [userId])
+}
+
+model Transaction {
+  transactionId Int               @id @default(autoincrement())
+  paymentId     String?
+  status        TransactionStatus @default(PENDING)
+  amount        Decimal           @db.Decimal(10, 2)
+  type          TransactionType
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  abonnements  Abonnement[]
+  reservations Reservation[]
+  publicites   Publicite[]
+}
+
+/* ========== MODELS EXISTANTS (inchangés) ========== */
 
 model Conversation {
   conversationId Int      @id @default(autoincrement())
@@ -138,8 +869,6 @@ model Conversation {
   messages Message[]
 
   @@unique([medecinId, patientId])
-  @@index([medecinId])
-  @@index([patientId])
 }
 
 model Message {
@@ -151,7 +880,7 @@ model Message {
   receiverId      Int?
   content         String?
   meta            Json?
-  ficheId         Int?         // pointer vers Fiche pour les DEMANDES (FICHE_REQUEST)
+  ficheId         Int?
   isRead          Boolean      @default(false)
   isAnonymous     Boolean      @default(false)
   createdAt       DateTime     @default(now())
@@ -159,19 +888,11 @@ model Message {
 
   conversation   Conversation?    @relation(fields: [conversationId], references: [conversationId])
   cas            CasDifficile?    @relation(fields: [casId], references: [casId])
-
   sender         User             @relation("MessageSender",   fields: [senderId],   references: [userId])
   receiver       User?            @relation("MessageReceiver", fields: [receiverId], references: [userId])
-
   fiche          Fiche?           @relation(fields: [ficheId], references: [ficheId])
-
-  @@index([conversationId, createdAt])
-  @@index([receiverId, isRead])
-  @@index([casId, createdAt])
-  @@index([ficheId])
 }
 
-/* ===== Cas difficiles ===== */
 model CasDifficile {
   casId       Int      @id @default(autoincrement())
   name        String
@@ -196,33 +917,22 @@ model CasReadState {
   user User         @relation(fields: [userId], references: [userId])
 
   @@unique([casId, userId])
-  @@index([userId])
 }
 
-/* ===== Nouvelle table unique Fiche (questions + réponses en JSON) ===== */
 model Fiche {
   ficheId     Int      @id @default(autoincrement())
   title       String
   description String?
   createdBy   Int
   isActive    Boolean  @default(true)
-
-  // Définition
-  questions   Json     // Array<Question>
-
-  // Collecte des réponses (append-only)
-  responses   Json     // Array<Response>
-
+  questions   Json
+  responses   Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   creator     User     @relation(fields: [createdBy], references: [userId])
-  requests    Message[] // messages FICHE_REQUEST pointant vers cette Fiche
-
-  @@index([createdBy, isActive])
+  requests    Message[]
 }
-
-/* ===== Reste de tes modèles “métier” inchangés ===== */
 
 model Notification {
   notificationId Int      @id @default(autoincrement())
@@ -233,7 +943,6 @@ model Notification {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user User @relation(fields: [userId], references: [userId])
-  @@index([userId, isRead, createdAt])
 }
 
 model Speciality {
@@ -246,6 +955,7 @@ model Speciality {
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
   users                       User[]
+  groupePackages              GroupePackage[]
 }
 
 model Feedback {
@@ -285,9 +995,6 @@ model Video {
 
   medecin  User           @relation(fields: [medecinId], references: [userId])
   category CategoryVideo? @relation(fields: [categoryId], references: [categoryId])
-
-  @@index([medecinId])
-  @@index([categoryId])
 }
 
 model CategoryVideo {
@@ -296,69 +1003,8 @@ model CategoryVideo {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-coverImage  String?
+  coverImage  String?
   videos      Video[]
-}
-
-
-model Planning {
-  planningId Int      @id @default(autoincrement())
-  debutHour  String
-  endHour    String
-  lundi      Boolean  @default(false)
-  mardi      Boolean  @default(false)
-  mercredi   Boolean  @default(false)
-  jeudi      Boolean  @default(false)
-  vendredi   Boolean  @default(false)
-  samedi     Boolean  @default(false)
-  dimanche   Boolean  @default(false)
-  isClosed   Boolean  @default(false)
-  medecinId  Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  medecin User @relation(fields: [medecinId], references: [userId])
-}
-
-model Abonnement {
-  abonnementId                Int @id @default(autoincrement())
-  medecinId                   Int
-  patientId                   Int
-  numberOfTimePlanReservation Int
-  status        AbonnementStatus @default(PENDING)
-  debutDate     DateTime
-  endDate       DateTime
-  amount        Decimal?         @db.Decimal(10, 2)
-  transactionId Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  medecin     User         @relation("MedecinAbonnements", fields: [medecinId], references: [userId])
-  patient     User         @relation("PatientAbonnements", fields: [patientId], references: [userId])
-  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
-}
-
-model Reservation {
-  reservationId Int               @id @default(autoincrement())
-  date          String
-  hour          String
-  type          ReservationType
-  patientName   String
-  sex           Sex
-  age           Int?
-  description   String?
-  medecinId     Int
-  patientId     Int
-  location      String?
-  amount        Decimal?          @db.Decimal(10, 2)
-  transactionId Int?
-  status        ReservationStatus @default(PENDING)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
-  patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
-  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
-  ordonance   Ordonance?   @relation("ReservationOrdonnances")
 }
 
 model SoldeMedecin {
@@ -370,22 +1016,9 @@ model SoldeMedecin {
   medecin User @relation(fields: [medecinId], references: [userId])
 }
 
-model Transaction {
-  transactionId Int               @id @default(autoincrement())
-  paymentId     String?
-  status        TransactionStatus @default(PENDING)
-  amount        Decimal           @db.Decimal(10, 2)
-  type          TransactionType
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  abonnements  Abonnement[]
-  reservations Reservation[]
-}
-
 model Ordonance {
   ordonanceId     Int      @id @default(autoincrement())
-  name            String?  @db.VarChar(255)   // 👈 NEW
+  name            String?  @db.VarChar(255)
   dureeTraitement String?  @db.VarChar(100)
   traitement      Json?
   comment         String?
@@ -399,57 +1032,29 @@ model Ordonance {
   medecin     User        @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
   patient     User        @relation("PatientOrdonnances", fields: [patientId], references: [userId])
   reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
-
   Suivi Suivi[]
 }
 
-model ProtocoleOrdonance {
-  protocoleId Int      @id @default(autoincrement())
-  name        String   @unique @db.VarChar(255)  // nom de la maladie (ex: paludisme)
-  description String?  @db.VarChar(500)
-  traitement  Json                           // array<TreatmentItem>
-  images      Json?                          // optionnel (schéma identique à Ordonance.images)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Medicament {
-  medicamentId Int     @id @default(autoincrement())
-  name         String
-  nameCommercial String?
-  nameLabo    String?
-  dosage       String?
-  forme        String?
-  voie         String?
-  posologie    String?
-  comment      String?
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-
 model Suivi {
- suiviId         Int       @id @default(autoincrement())
-  name            String     // Name of the medication
-  dosage          String?    // Dosage (e.g. "500mg")
-  posologie       String?    // Posology or usage instructions
-  forme           String?    // Form (e.g. tablet, liquid)
-  voie            String?    // Route of administration
-  instructions    String?    // Specific instructions (e.g. "Before meals")
-  startDate       DateTime   // Start date of the treatment
-  endDate         DateTime   // End date of the treatment
-  frequency       Json      // Frequency object (JSON)
-  notificationTimes Json      // Times for notifications (e.g. ["08:00", "13:00"])
-  isActive        Boolean    @default(true) // Indicates if the suivi is active
-  createdAt       DateTime   @default(now()) // Date of creation
-  updatedAt       DateTime   @updatedAt    // Date of last update
-
-  patientId       Int    // ID of the associated patient
-  ordonanceId     Int?   // Optional ID of the associated ordonnance
+  suiviId           Int       @id @default(autoincrement())
+  name              String
+  dosage            String?
+  posologie         String?
+  forme             String?
+  voie              String?
+  instructions      String?
+  startDate         DateTime
+  endDate           DateTime
+  frequency         Json
+  notificationTimes Json
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  patientId         Int
+  ordonanceId       Int?
   
-  patient         User      @relation(fields: [patientId], references: [userId])
-  ordonnance      Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
+  patient      User      @relation(fields: [patientId], references: [userId])
+  ordonnance   Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
 }
 
 model PasswordReset {
@@ -462,7 +1067,6 @@ model PasswordReset {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [userId])
-  @@index([email])
 }
 
 model Category {
@@ -473,9 +1077,6 @@ model Category {
   updatedAt   DateTime @updatedAt
   formations  FormationContinue[]
   Lesson      Lesson[]
-
-  @@index([name])
-  @@map("categories")
 }
 
 model FormationContinue {
@@ -490,9 +1091,6 @@ model FormationContinue {
 
   category Category? @relation(fields: [categoryId], references: [categoryId])
   lessons  Lesson[]
-
-  @@index([categoryId, name])
-  @@map("formations_continue")
 }
 
 model Lesson {
@@ -508,28 +1106,23 @@ model Lesson {
 
   formation FormationContinue @relation(fields: [formationId], references: [formationId])
   category  Category?         @relation(fields: [categoryId], references: [categoryId])
-
-  @@index([formationId, orderIndex])
-  @@map("lessons")
 }
 
 model Role {
   roleId      Int        @id @default(autoincrement())
-  name        String     @unique      // ex: 'SUPERADMIN', 'MANAGE_PATIENT'
+  name        String     @unique
   description String?
   users       UserRole[]
   permissions RolePermission[]
 }
+
 model Permission {
   permissionId Int      @id @default(autoincrement())
-  name         String   @unique // TOUJOURS en MAJUSCULE sans accents (normalisé côté service)
+  name         String   @unique
   description  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
   roles RolePermission[]
-
-  @@index([name])
 }
 
 model RolePermission {
@@ -541,7 +1134,6 @@ model RolePermission {
   permission Permission @relation(fields: [permissionId], references: [permissionId])
 
   @@id([roleId, permissionId])
-  @@index([permissionId])
 }
 
 model UserRole {
@@ -553,5 +1145,28 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [roleId])
 
   @@id([userId, roleId])
-  @@index([roleId])
+}
+
+model Medicament {
+  medicamentId Int     @id @default(autoincrement())
+  name         String
+  nameCommercial String?
+  nameLabo    String?
+  dosage       String?
+  forme        String?
+  voie         String?
+  posologie    String?
+  comment      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProtocoleOrdonance {
+  protocoleId Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(255)
+  description String?  @db.VarChar(500)
+  traitement  Json
+  images      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

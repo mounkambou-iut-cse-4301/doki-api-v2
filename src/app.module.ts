@@ -25,9 +25,10 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { RolePermissionsModule } from './role-permissions/role-permissions.module';
 import { RolesModule } from './roles/roles.module';
 import { HopitalModule } from './hopital/hopital.module';
+import { PackageModule } from './package/package.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}),RolesModule, SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule, StatsModule, AiModule, PermissionsModule, RolePermissionsModule, HopitalModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}),RolesModule, SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule, StatsModule, AiModule, PermissionsModule, RolePermissionsModule, HopitalModule, PackageModule],
 })
 export class AppModule {}

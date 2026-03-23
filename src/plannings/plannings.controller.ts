@@ -1,40 +1,76 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+// src/planning/plannings.controller.ts
+import { 
+  Body, 
+  Controller, 
+  Delete, 
+  Get, 
+  Param, 
+  ParseIntPipe, 
+  Patch, 
+  Post, 
+  Query, 
+  UseGuards 
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PlanningsService } from './plannings.service';
 import { CreatePlanningDto } from './dto/create-planning.dto';
 import { UpdatePlanningDto } from './dto/update-planning.dto';
+import { UpdateJourStatusDto } from './dto/update-jour-status.dto';
 import { GetSlotsDto } from './dto/get-slots.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
+import { 
+  ApiCreateOrUpdatePlannings,
+  ApiUpdateJourStatus,
+  ApiGetPlanningsByMedecin,
+  ApiGetSlots,
+  ApiDeleteAllPlannings,
+  ApiDeleteSlot
+} from './decorators/api-planning.decorator';
 
- @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
 @ApiTags('planning')
 @Controller('planning')
 export class PlanningsController {
-    constructor(private readonly svc: PlanningsService) {}
+  constructor(private readonly svc: PlanningsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Créer un planning pour un médecin' })
-  @ApiResponse({ status: 201, description: 'Planning créé.' })
-  create(@Body() dto: CreatePlanningDto) {
-    return this.svc.create(dto);
+  @ApiCreateOrUpdatePlannings()
+  async createOrUpdate(@Body() dto: CreatePlanningDto) {
+    return this.svc.createOrUpdate(dto);
   }
 
-  @Patch(':medecinId')
-  @ApiOperation({ summary: 'Mettre à jour le planning d’un médecin' })
-  @ApiParam({ name: 'medecinId', type: 'integer' })
-  update(
+  @Patch(':medecinId/jour-status')
+  @ApiUpdateJourStatus()
+  async updateJourStatus(
     @Param('medecinId', ParseIntPipe) medecinId: number,
-    @Body() dto: UpdatePlanningDto,
+    @Body() dto: UpdateJourStatusDto
   ) {
-    return this.svc.update(medecinId, dto);
+    return this.svc.updateJourStatus(medecinId, dto);
+  }
+
+  @Get('medecin/:medecinId')
+  @ApiGetPlanningsByMedecin()
+  async findByMedecin(@Param('medecinId', ParseIntPipe) medecinId: number) {
+    return this.svc.findByMedecin(medecinId);
   }
 
   @Get('slots')
-  @ApiOperation({ summary: 'Lister les créneaux dispo pour un médecin un jour donné' })
-  @ApiResponse({ status: 200, description: 'Liste des créneaux.' })
-  getSlots(@Query() dto: GetSlotsDto) {
+  @ApiGetSlots()
+  async getSlots(@Query() dto: GetSlotsDto) {
     return this.svc.getSlots(dto);
+  }
+
+  @Delete('medecin/:medecinId')
+  @ApiDeleteAllPlannings()
+  async removeAll(@Param('medecinId', ParseIntPipe) medecinId: number) {
+    return this.svc.removeAll(medecinId);
+  }
+
+  @Delete('slot/:planningId')
+  @ApiDeleteSlot()
+  async removeSlot(@Param('planningId', ParseIntPipe) planningId: number) {
+    return this.svc.removeSlot(planningId);
   }
 }

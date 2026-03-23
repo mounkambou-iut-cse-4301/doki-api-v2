@@ -50,9 +50,15 @@ export class HopitalController {
   @ApiBearerAuth('JWT-auth')
   @UseGuards(JwtAuthGuard)
   @ApiGetAllHopitaux()
-  async findAll(@Query() query: HopitalQueryDto) {
-    return this.hopitalService.findAll(query);
+ async findAll(
+  @Query() query: HopitalQueryDto,
+  @Query('medecinId') medecinId?: string
+) {
+  if (medecinId) {
+    return this.hopitalService.findAllWithDoctorFilter(query, parseInt(medecinId));
   }
+  return this.hopitalService.findAll(query);
+}
 
   @Get(':id')
   @ApiBearerAuth('JWT-auth')

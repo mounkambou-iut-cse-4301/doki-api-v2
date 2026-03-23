@@ -1,3 +1,4 @@
+// src/hopital/dto/hopital-query.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -26,4 +27,10 @@ export class HopitalQueryDto {
   @IsInt()
   @Min(1)
   limit?: number = 20;
+
+  @ApiPropertyOptional({ description: 'ID du médecin pour filtrer les hôpitaux où il est affilié' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  medecinId?: number;
 }

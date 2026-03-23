@@ -51,7 +51,7 @@ async function bootstrap() {
 
   // --- Swagger ---
   const config = new DocumentBuilder()
-    .setTitle('DOKITA API')
+    .setTitle('DOKITA API VERSION 2')
     .setDescription('API de gestion de DOKITA')
     .setVersion('1.0')
     .addBearerAuth(

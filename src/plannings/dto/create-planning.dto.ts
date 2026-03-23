@@ -1,49 +1,79 @@
 // src/planning/dto/create-planning.dto.ts
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsBoolean, IsInt } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { 
+  IsNotEmpty, 
+  IsString, 
+  IsInt, 
+  IsOptional, 
+  IsEnum, 
+  IsIn, 
+  IsBoolean, 
+  ValidateIf,
+  IsArray,
+  ValidateNested
+} from 'class-validator';
+import { PlanningType } from 'generated/prisma';
 
-export class CreatePlanningDto {
-  @ApiProperty({ description: 'Heure de début (HH:MM:SS)' })
-  @IsNotEmpty() @IsString()
+export class PlanningSlotDto {
+  @ApiProperty({ description: 'Heure de début (HH:MM:SS)', example: '08:00:00' })
+  @IsNotEmpty()
+  @IsString()
   debutHour: string;
 
-  @ApiProperty({ description: 'Heure de fin (HH:MM:SS)' })
-  @IsNotEmpty() @IsString()
+  @ApiProperty({ description: 'Heure de fin (HH:MM:SS)', example: '12:00:00' })
+  @IsNotEmpty()
+  @IsString()
   endHour: string;
 
-  @ApiProperty({ description: 'Ouvert le lundi?' })
-  @IsNotEmpty() @IsBoolean()
-  lundi: boolean;
+  @ApiProperty({ enum: PlanningType, description: 'Type de planning' })
+  @IsNotEmpty()
+  @IsEnum(PlanningType)
+  type: PlanningType;
 
-  @ApiProperty({ description: 'Ouvert le mardi?' })
-  @IsNotEmpty() @IsBoolean()
-  mardi: boolean;
+  @ApiPropertyOptional({ description: 'ID de l\'hôpital (obligatoire si type = IN_PERSON)' })
+  @ValidateIf(o => o.type === 'IN_PERSON')
+  @IsNotEmpty()
+  @IsInt()
+  hopitalId?: number;
 
-  @ApiProperty({ description: 'Ouvert le mercredi?' })
-  @IsNotEmpty() @IsBoolean()
-  mercredi: boolean;
+  @ApiPropertyOptional({ description: 'Salle de consultation' })
+  @IsOptional()
+  @IsString()
+  salle?: string;
+}
 
-  @ApiProperty({ description: 'Ouvert le jeudi?' })
-  @IsNotEmpty() @IsBoolean()
-  jeudi: boolean;
+export class JourPlanningDto {
+  @ApiProperty({ description: 'Jour de la semaine', enum: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'] })
+  @IsNotEmpty()
+  @IsString()
+  @IsIn(['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'])
+  jour: string;
 
-  @ApiProperty({ description: 'Ouvert le vendredi?' })
-  @IsNotEmpty() @IsBoolean()
-  vendredi: boolean;
+  @ApiProperty({ description: 'Ce jour est-il off (fermé) ?', default: false })
+  @IsNotEmpty()
+  @IsBoolean()
+  isOff: boolean;
 
-  @ApiProperty({ description: 'Ouvert le samedi?' })
-  @IsNotEmpty() @IsBoolean()
-  samedi: boolean;
+  @ApiPropertyOptional({ description: 'Liste des créneaux pour ce jour (ignoré si isOff = true)', type: [PlanningSlotDto] })
+  @ValidateIf(o => !o.isOff)
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PlanningSlotDto)
+  slots?: PlanningSlotDto[];
+}
 
-  @ApiProperty({ description: 'Ouvert le dimanche?' })
-  @IsNotEmpty() @IsBoolean()
-  dimanche: boolean;
-
-  @ApiProperty({ description: 'Planning fermé ce jour?' })
-  @IsNotEmpty() @IsBoolean()
-  isClosed: boolean;
-
+export class CreatePlanningDto {
   @ApiProperty({ description: 'ID du médecin' })
-  @IsNotEmpty() @IsInt()
+  @IsNotEmpty()
+  @IsInt()
   medecinId: number;
+
+  @ApiProperty({ description: 'Plannings par jour', type: [JourPlanningDto] })
+  @IsNotEmpty()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => JourPlanningDto)
+  plannings: JourPlanningDto[];
 }

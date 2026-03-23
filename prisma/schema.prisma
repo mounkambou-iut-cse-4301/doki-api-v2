@@ -208,29 +208,29 @@ model Abonnement {
 }
 
 // V2: Planning avec type et hopital
+
+
+// prisma/schema.prisma
 model Planning {
-  planningId Int          @id @default(autoincrement())
-  debutHour  String
-  endHour    String
-  lundi      Boolean      @default(false)
-  mardi      Boolean      @default(false)
-  mercredi   Boolean      @default(false)
-  jeudi      Boolean      @default(false)
-  vendredi   Boolean      @default(false)
-  samedi     Boolean      @default(false)
-  dimanche   Boolean      @default(false)
-  isClosed   Boolean      @default(false)
+  planningId Int      @id @default(autoincrement())
   medecinId  Int
+  jour       String   // lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche
+  debutHour  String   // HH:MM:SS
+  endHour    String   // HH:MM:SS
   type       PlanningType @default(ONLINE)
-  hopitalId  Int?         
-  salle      String?      
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  hopitalId  Int?     // ← Rendre optionnel avec ?
+  salle      String?
+  isActive   Boolean  @default(true)
+  isOff      Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   medecin User    @relation(fields: [medecinId], references: [userId])
   hopital User?   @relation("HopitalPlannings", fields: [hopitalId], references: [userId])
-}
 
+  @@unique([medecinId, jour, debutHour, type, hopitalId])
+  @@index([medecinId, jour, isActive])
+}
 // V2: Reservation avec hopital et abonnement
 model Reservation {
   reservationId Int               @id @default(autoincrement())

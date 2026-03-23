@@ -658,4 +658,78 @@ export class HopitalService {
       },
     };
   }
+
+
+// Dans la classe HopitalService, ajouter cette méthode
+async findAllWithDoctorFilter(query: HopitalQueryDto, medecinId?: number) {
+  const page = query.page || 1;
+  const limit = query.limit || 20;
+  const skip = (page - 1) * limit;
+
+  const where: any = {
+    userType: UserType.HOPITAL,
+  };
+
+  // Filtrer par médecin si spécifié
+  if (medecinId) {
+    where.medecinsAffilies = {
+      some: {
+        medecinId: medecinId
+      }
+    };
+  }
+
+  if (query.search) {
+    where.OR = [
+      { firstName: { contains: query.search } },
+      { lastName: { contains: query.search } },
+      { email: { contains: query.search } },
+      { hospitalName: { contains: query.search } },
+    ];
+  }
+
+  if (query.city) {
+    where.city = { contains: query.city };
+  }
+
+  const [items, total] = await this.prisma.$transaction([
+    this.prisma.user.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { firstName: 'asc' },
+      select: {
+        userId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        city: true,
+        address: true,
+        profile: true,
+        isVerified: true,
+        createdAt: true,
+        _count: {
+          select: {
+            medecinsAffilies: true,
+            reservationsHopital: true,
+          },
+        },
+      },
+    }),
+    this.prisma.user.count({ where }),
+  ]);
+
+  return {
+    message: 'Liste des hôpitaux récupérée avec succès',
+    messageE: 'Hospitals list retrieved successfully',
+    data: items,
+    meta: {
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    },
+  };
+}
 }

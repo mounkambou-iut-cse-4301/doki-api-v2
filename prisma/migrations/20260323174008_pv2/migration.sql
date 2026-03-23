@@ -78,23 +78,20 @@ CREATE TABLE `Abonnement` (
 -- CreateTable
 CREATE TABLE `Planning` (
     `planningId` INTEGER NOT NULL AUTO_INCREMENT,
+    `medecinId` INTEGER NOT NULL,
+    `jour` VARCHAR(191) NOT NULL,
     `debutHour` VARCHAR(191) NOT NULL,
     `endHour` VARCHAR(191) NOT NULL,
-    `lundi` BOOLEAN NOT NULL DEFAULT false,
-    `mardi` BOOLEAN NOT NULL DEFAULT false,
-    `mercredi` BOOLEAN NOT NULL DEFAULT false,
-    `jeudi` BOOLEAN NOT NULL DEFAULT false,
-    `vendredi` BOOLEAN NOT NULL DEFAULT false,
-    `samedi` BOOLEAN NOT NULL DEFAULT false,
-    `dimanche` BOOLEAN NOT NULL DEFAULT false,
-    `isClosed` BOOLEAN NOT NULL DEFAULT false,
-    `medecinId` INTEGER NOT NULL,
     `type` ENUM('ONLINE', 'IN_PERSON') NOT NULL DEFAULT 'ONLINE',
     `hopitalId` INTEGER NULL,
     `salle` VARCHAR(191) NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `isOff` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `Planning_medecinId_jour_isActive_idx`(`medecinId`, `jour`, `isActive`),
+    UNIQUE INDEX `Planning_medecinId_jour_debutHour_type_hopitalId_key`(`medecinId`, `jour`, `debutHour`, `type`, `hopitalId`),
     PRIMARY KEY (`planningId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

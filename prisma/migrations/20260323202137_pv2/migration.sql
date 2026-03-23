@@ -25,8 +25,10 @@ CREATE TABLE `User` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `User_email_key`(`email`),
-    UNIQUE INDEX `User_phone_key`(`phone`),
+    INDEX `User_email_idx`(`email`),
+    INDEX `User_phone_idx`(`phone`),
+    UNIQUE INDEX `User_email_userType_key`(`email`, `userType`),
+    UNIQUE INDEX `User_phone_userType_key`(`phone`, `userType`),
     PRIMARY KEY (`userId`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

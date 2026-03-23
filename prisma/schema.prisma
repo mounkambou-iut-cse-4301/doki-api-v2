@@ -92,8 +92,8 @@ model User {
   firstName     String
   lastName      String
   sex           Sex
-  email         String   @unique
-  phone         String   @unique
+  email         String   
+  phone         String   
   password      String
   userType      UserType
   acceptPrivacy Boolean  @default(false)
@@ -151,6 +151,11 @@ model User {
   reservationsHopital Reservation[]   @relation("HopitalReservations")
   publicitesAnnonceur Publicite[]      @relation("UserPublicites")
   publicitesValidees  Publicite[]      @relation("PubliciteValidator")
+
+    @@unique([email, userType])  // Un même email peut être utilisé par différents types
+  @@unique([phone, userType])  // Un même téléphone peut être utilisé par différents types
+  @@index([email])
+  @@index([phone])
 }
 
 // V2: Table de liaison pour l'affiliation médecin-hôpital

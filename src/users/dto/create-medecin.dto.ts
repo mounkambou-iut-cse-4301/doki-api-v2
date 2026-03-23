@@ -1,3 +1,4 @@
+// create-medecin.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsNotEmpty,
@@ -15,8 +16,8 @@ export class CreateMedecinDto extends CreatePatientDto {
   @MaxLength(100)
   matricule?: string;
 
-  @ApiProperty({ description: 'ID de la spécialité du médecin' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: 'ID de la spécialité du médecin' })
+  @IsOptional()
   @IsInt()
-  specialityId: number;
+  specialityId?: number; // Rendre optionnel
 }

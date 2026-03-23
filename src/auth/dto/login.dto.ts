@@ -1,5 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+// login.dto.ts
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, IsEnum } from 'class-validator';
+import { UserType } from 'generated/prisma';
 
 export class LoginDto {
   @ApiProperty({ description: 'Numéro de téléphone' })
@@ -10,7 +12,11 @@ export class LoginDto {
   @IsNotEmpty() @IsString()
   password: string;
 
-    @ApiProperty({ description: 'entrer le expotoken' })
+  @ApiProperty({ description: 'Type d\'utilisateur', enum: UserType })
+  @IsNotEmpty() @IsEnum(UserType)
+  userType: UserType;
+
+  @ApiPropertyOptional({ description: 'entrer le expotoken' })
   @IsOptional() @IsString()
   expotoken: string;
 }

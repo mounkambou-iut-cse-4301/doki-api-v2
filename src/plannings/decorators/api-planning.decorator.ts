@@ -6,9 +6,11 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
-  ApiBody
+  ApiBody,
+  ApiExtraModels,
+  getSchemaPath
 } from '@nestjs/swagger';
-import { CreatePlanningDto } from '../dto/create-planning.dto';
+import { CreatePlanningDto, PlanningSlotDto, JourPlanningDto } from '../dto/create-planning.dto';
 import { UpdateJourStatusDto } from '../dto/update-jour-status.dto';
 import { PlanningType } from 'generated/prisma';
 
@@ -23,6 +25,8 @@ export interface PlanningSlotResponse {
   hopitalName?: string;
   hopitalAddress?: string;
   salle?: string;
+  consultationPrice?: number;
+  consultationDuration?: number;
 }
 
 export interface JourPlanningResponse {
@@ -33,6 +37,8 @@ export interface JourPlanningResponse {
 export interface GetPlanningsByMedecinResponse {
   medecinId: number;
   medecinName: string;
+  defaultOnlinePrice: number;
+  defaultOnlineDuration: number;
   plannings: {
     lundi: JourPlanningResponse;
     mardi: JourPlanningResponse;
@@ -52,6 +58,8 @@ export interface AvailableSlotResponse {
   hopitalName?: string;
   hopitalAddress?: string;
   salle?: string;
+  price: number;
+  duration: number;
 }
 
 export interface GetSlotsResponse {
@@ -68,7 +76,7 @@ export interface CreateUpdateResult {
   created: any[];
   updated: any[];
   deleted: Array<{ jour: string; count: number; slots?: any[] }>;
-  errors: Array<{ jour: string; error: string }>;
+  errors: Array<{ jour: string; slot?: string; error: string }>;
 }
 
 export interface CreateOrUpdatePlanningsResponse {
@@ -108,9 +116,189 @@ export function ApiCreateOrUpdatePlannings() {
     ApiBearerAuth('JWT-auth'),
     ApiOperation({ 
       summary: 'Créer ou mettre à jour les plannings',
-      description: 'Crée ou met à jour tous les plannings d\'un médecin. Permet de gérer les jours OFF.'
+      description: `Crée ou met à jour tous les plannings d'un médecin.
+      
+**IMPORTANT:**
+- Pour les créneaux **ONLINE**: Ne pas inclure \`consultationPrice\` et \`consultationDuration\` (ils sont ignorés, les valeurs de la spécialité sont utilisées)
+- Pour les créneaux **IN_PERSON**: \`consultationPrice\` et \`consultationDuration\` sont OBLIGATOIRES
+- \`hopitalId\` est OBLIGATOIRE pour les créneaux IN_PERSON`
     }),
-    ApiBody({ type: CreatePlanningDto }),
+    ApiBody({ 
+      type: CreatePlanningDto,
+      examples: {
+        'Créneaux ONLINE (sans prix/durée)': {
+          summary: 'Exemple pour créneaux en ligne',
+          description: 'Pour les créneaux ONLINE, on n\'envoie PAS consultationPrice et consultationDuration',
+          value: {
+            medecinId: 4,
+            plannings: [
+              {
+                jour: "lundi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "09:00:00",
+                    endHour: "13:00:00",
+                    type: "ONLINE"
+                  },
+                    {
+                    debutHour: "14:00:00",
+                    endHour: "18:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation A",
+                    consultationPrice: 15000,
+                    consultationDuration: 30
+                  }
+                ]
+              },
+              {
+                jour: "mercredi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "14:00:00",
+                    endHour: "18:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation B",
+                    consultationPrice: 18000,
+                    consultationDuration: 30
+
+                  },
+                    {
+                    debutHour: "19:00:00",
+                    endHour: "22:00:00",
+                    type: "ONLINE"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        'Créneaux IN_PERSON (avec prix et durée)': {
+          summary: 'Exemple pour créneaux en présentiel',
+          description: 'Pour les créneaux IN_PERSON, consultationPrice et consultationDuration sont OBLIGATOIRES',
+          value: {
+            medecinId: 4,
+            plannings: [
+              {
+                jour: "mardi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "08:00:00",
+                    endHour: "12:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation A",
+                    consultationPrice: 15000,
+                    consultationDuration: 30
+                  }
+                ]
+              },
+              {
+                jour: "jeudi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "14:00:00",
+                    endHour: "18:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation B",
+                    consultationPrice: 20000,
+                    consultationDuration: 45
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        'Créneaux MIXTES (online + in_person)': {
+          summary: 'Exemple mixte',
+          description: 'Combinaison de créneaux en ligne et en présentiel',
+          value: {
+            medecinId: 4,
+            plannings: [
+              {
+                jour: "lundi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "08:00:00",
+                    endHour: "12:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation A",
+                    consultationPrice: 15000,
+                    consultationDuration: 30
+                  },
+                  {
+                    debutHour: "14:00:00",
+                    endHour: "18:00:00",
+                    type: "ONLINE"
+                  }
+                ]
+              },
+              {
+                jour: "mercredi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "09:00:00",
+                    endHour: "13:00:00",
+                    type: "ONLINE"
+                  },
+                  {
+                    debutHour: "15:00:00",
+                    endHour: "19:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation B",
+                    consultationPrice: 18000,
+                    consultationDuration: 30
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        'Créneaux avec tarifs variables (matin/soir)': {
+          summary: 'Tarifs différents selon l\'horaire',
+          description: 'Exemple avec des tarifs différents pour le matin et le soir',
+          value: {
+            medecinId: 4,
+            plannings: [
+              {
+                jour: "lundi",
+                isOff: false,
+                slots: [
+                  {
+                    debutHour: "08:00:00",
+                    endHour: "12:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation A",
+                    consultationPrice: 10000,
+                    consultationDuration: 30
+                  },
+                  {
+                    debutHour: "17:00:00",
+                    endHour: "22:00:00",
+                    type: "IN_PERSON",
+                    hopitalId: 1,
+                    salle: "Consultation A",
+                    consultationPrice: 20000,
+                    consultationDuration: 30
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }),
     ApiResponse({
       status: 201,
       description: 'Plannings traités avec succès',
@@ -129,6 +317,8 @@ export function ApiCreateOrUpdatePlannings() {
                 type: 'IN_PERSON',
                 hopitalId: 1,
                 salle: 'Consultation A',
+                consultationPrice: 15000,
+                consultationDuration: 30,
                 isOff: false,
                 isActive: true
               }
@@ -142,7 +332,29 @@ export function ApiCreateOrUpdatePlannings() {
     }),
     ApiResponse({
       status: 400,
-      description: 'Données invalides'
+      description: 'Données invalides',
+      schema: {
+        example: {
+          message: 'Plannings traités: 0 créé(s), 0 mis à jour, 0 supprimé(s), 2 erreur(s)',
+          data: {
+            created: [],
+            updated: [],
+            deleted: [],
+            errors: [
+              {
+                jour: "lundi",
+                slot: "14:00:00-18:00:00 (IN_PERSON)",
+                error: "Le prix de consultation est obligatoire pour un créneau en présentiel"
+              },
+              {
+                jour: "mardi",
+                slot: "09:00:00-12:00:00 (IN_PERSON)",
+                error: "La durée de consultation est obligatoire pour un créneau en présentiel"
+              }
+            ]
+          }
+        }
+      }
     }),
     ApiResponse({
       status: 404,
@@ -175,7 +387,7 @@ export function ApiUpdateJourStatus() {
             debutHour: '00:00:00',
             endHour: '00:00:00',
             type: 'ONLINE',
-            hopitalId: 0,
+            hopitalId: null,
             isOff: true,
             isActive: true
           }
@@ -205,6 +417,8 @@ export function ApiGetPlanningsByMedecin() {
         example: {
           medecinId: 4,
           medecinName: 'Dr Jean MBALLA',
+          defaultOnlinePrice: 10000,
+          defaultOnlineDuration: 30,
           plannings: {
             lundi: {
               isOff: false,
@@ -217,7 +431,9 @@ export function ApiGetPlanningsByMedecin() {
                   hopitalId: 1,
                   hopitalName: 'Hôpital Central',
                   hopitalAddress: 'Boulevard du 20 Mai',
-                  salle: 'Consultation A'
+                  salle: 'Consultation A',
+                  consultationPrice: 15000,
+                  consultationDuration: 30
                 }
               ]
             },
@@ -232,7 +448,9 @@ export function ApiGetPlanningsByMedecin() {
                   hopitalId: null,
                   hopitalName: null,
                   hopitalAddress: null,
-                  salle: null
+                  salle: null,
+                  consultationPrice: null,
+                  consultationDuration: null
                 }
               ]
             },
@@ -277,8 +495,8 @@ export function ApiGetSlots() {
     }),
     ApiQuery({ name: 'medecinId', type: Number, required: true, description: 'ID du médecin' }),
     ApiQuery({ name: 'date', type: String, required: true, description: 'Date (YYYY-MM-DD)' }),
-    ApiQuery({ name: 'type', enum: PlanningType, required: false, description: 'Type de créneaux' }),
-    ApiQuery({ name: 'hopitalId', type: Number, required: false, description: 'ID de l\'hôpital' }),
+    ApiQuery({ name: 'type', enum: PlanningType, required: false, description: 'Type de créneaux (ONLINE ou IN_PERSON)' }),
+    ApiQuery({ name: 'hopitalId', type: Number, required: false, description: 'ID de l\'hôpital (pour filtrer les créneaux en présentiel)' }),
     ApiResponse({
       status: 200,
       description: 'Créneaux récupérés avec succès',
@@ -296,7 +514,31 @@ export function ApiGetSlots() {
               hopitalId: 1,
               hopitalName: 'Hôpital Central',
               hopitalAddress: 'Boulevard du 20 Mai',
-              salle: 'Consultation A'
+              salle: 'Consultation A',
+              price: 15000,
+              duration: 30
+            },
+            {
+              start: '08:35:00',
+              end: '09:05:00',
+              type: 'IN_PERSON',
+              hopitalId: 1,
+              hopitalName: 'Hôpital Central',
+              hopitalAddress: 'Boulevard du 20 Mai',
+              salle: 'Consultation A',
+              price: 15000,
+              duration: 30
+            },
+            {
+              start: '14:00:00',
+              end: '14:30:00',
+              type: 'ONLINE',
+              hopitalId: null,
+              hopitalName: null,
+              hopitalAddress: null,
+              salle: null,
+              price: 10000,
+              duration: 30
             }
           ]
         }

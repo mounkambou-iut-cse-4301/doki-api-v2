@@ -1,5 +1,4 @@
-// src/planning/plannings.service.ts - Version corrigée avec la bonne logique des créneaux
-
+// src/planning/plannings.service.ts
 import { 
   BadRequestException, 
   ConflictException, 
@@ -36,44 +35,77 @@ export class PlanningsService {
     return jours[dt.getDay()];
   }
 
-  /** Valider un créneau individuel */
-  private async validateSlot(medecinId: number, slot: PlanningSlotDto, jour: string) {
+  /** Valider un créneau individuel - retourne les erreurs sans bloquer */
+  private async validateSlot(medecinId: number, slot: PlanningSlotDto, jour: string): Promise<{ valid: boolean; error?: string }> {
     const startMin = this.timeToMinutes(slot.debutHour);
     const endMin = this.timeToMinutes(slot.endHour);
     
     if (startMin >= endMin) {
-      throw new BadRequestException({
-        message: `L'heure de début (${slot.debutHour}) doit être antérieure à l'heure de fin (${slot.endHour}) pour le ${jour}`,
-        messageE: `Start time (${slot.debutHour}) must be before end time (${slot.endHour}) for ${jour}`
-      });
+      return {
+        valid: false,
+        error: `L'heure de début (${slot.debutHour}) doit être antérieure à l'heure de fin (${slot.endHour})`
+      };
     }
 
     if (endMin - startMin < 15) {
-      throw new BadRequestException({
-        message: `La durée minimale d'un créneau est de 15 minutes pour le ${jour}`,
-        messageE: `Minimum slot duration is 15 minutes for ${jour}`
-      });
+      return {
+        valid: false,
+        error: `La durée minimale d'un créneau est de 15 minutes`
+      };
     }
 
+    // Validation pour les créneaux en présentiel
     if (slot.type === PlanningType.IN_PERSON) {
       if (!slot.hopitalId) {
-        throw new BadRequestException({
-          message: `L'ID de l'hôpital est obligatoire pour un créneau en présentiel le ${jour}`,
-          messageE: `Hospital ID is required for in-person slot on ${jour}`
-        });
+        return {
+          valid: false,
+          error: `L'ID de l'hôpital est obligatoire pour un créneau en présentiel`
+        };
       }
 
-      const hopital = await this.prisma.user.findUnique({
+      // Vérifier que le prix est présent
+      if (slot.consultationPrice === undefined || slot.consultationPrice === null) {
+        return {
+          valid: false,
+          error: `Le prix de consultation est obligatoire pour un créneau en présentiel`
+        };
+      }
+
+      // Vérifier que la durée est présente
+      if (slot.consultationDuration === undefined || slot.consultationDuration === null) {
+        return {
+          valid: false,
+          error: `La durée de consultation est obligatoire pour un créneau en présentiel`
+        };
+      }
+
+      if (slot.consultationPrice < 0) {
+        return {
+          valid: false,
+          error: `Le prix de consultation ne peut pas être négatif`
+        };
+      }
+
+      if (slot.consultationDuration < 15) {
+        return {
+          valid: false,
+          error: `La durée de consultation doit être d'au moins 15 minutes`
+        };
+      }
+
+      // Vérifier l'existence de l'hôpital
+      const hopital = await this.prisma.user.findFirst({
         where: { userId: slot.hopitalId, userType: UserType.HOPITAL }
       });
 
       if (!hopital) {
-        throw new NotFoundException({
-          message: `Hôpital avec ID ${slot.hopitalId} introuvable`,
-          messageE: `Hospital with ID ${slot.hopitalId} not found`
-        });
+        return {
+          valid: false,
+          error: `Hôpital avec ID ${slot.hopitalId} introuvable`
+        };
       }
 
+      // Vérifier l'affiliation
       const affiliation = await this.prisma.medecinHopital.findUnique({
         where: {
           medecinId_hopitalId: {
@@ -84,16 +116,19 @@ export class PlanningsService {
       });
 
       if (!affiliation) {
-        throw new BadRequestException({
-          message: `Le médecin n'est pas affilié à l'hôpital pour le ${jour}`,
-          messageE: `Doctor is not affiliated with this hospital for ${jour}`
-        });
+        return {
+          valid: false,
+          error: `Le médecin n'est pas affilié à cet hôpital`
+        };
       }
     }
+    
+    // Pour les créneaux en ligne, on ignore les prix/durées
+    return { valid: true };
   }
 
   /** Vérifier les chevauchements entre créneaux d'un même jour */
-  private checkOverlaps(slots: PlanningSlotDto[], jour: string) {
+  private checkOverlaps(slots: PlanningSlotDto[], jour: string): { valid: boolean; error?: string } {
     const sorted = [...slots].sort((a, b) => 
       this.timeToMinutes(a.debutHour) - this.timeToMinutes(b.debutHour)
     );
@@ -105,18 +140,44 @@ export class PlanningsService {
       const nextStart = this.timeToMinutes(next.debutHour);
 
       if (currentEnd > nextStart) {
-        throw new BadRequestException({
-          message: `Les créneaux du ${jour} se chevauchent: ${current.debutHour}-${current.endHour} et ${next.debutHour}-${next.endHour}`,
-          messageE: `Slots on ${jour} overlap: ${current.debutHour}-${current.endHour} and ${next.debutHour}-${next.endHour}`
-        });
+        return {
+          valid: false,
+          error: `Les créneaux se chevauchent: ${current.debutHour}-${current.endHour} et ${next.debutHour}-${next.endHour}`
+        };
       }
     }
+    return { valid: true };
+  }
+
+  /** Récupérer les infos du médecin avec sa spécialité */
+  private async getMedecinWithSpeciality(medecinId: number) {
+    const medecin = await this.prisma.user.findUnique({
+      where: { userId: medecinId, userType: UserType.MEDECIN },
+      include: { speciality: true }
+    });
+
+    if (!medecin) {
+      throw new NotFoundException({
+        message: `Médecin avec ID ${medecinId} introuvable`,
+        messageE: `Doctor with ID ${medecinId} not found`
+      });
+    }
+
+    if (!medecin.speciality) {
+      throw new BadRequestException({
+        message: 'Le médecin n\'a pas de spécialité configurée',
+        messageE: 'Doctor does not have a specialty configured'
+      });
+    }
+
+    return medecin;
   }
 
   /** Créer ou mettre à jour les plannings d'un médecin (UPSERT) */
   async createOrUpdate(dto: CreatePlanningDto) {
     this.logger.log(`Starting createOrUpdate for doctor ${dto.medecinId}`);
     
+    // Vérifier que le médecin existe
     const medecin = await this.prisma.user.findUnique({
       where: { userId: dto.medecinId, userType: UserType.MEDECIN }
     });
@@ -132,7 +193,7 @@ export class PlanningsService {
       created: [] as any[],
       updated: [] as any[],
       deleted: [] as any[],
-      errors: [] as any[]
+      errors: [] as { jour: string; slot?: string; error: string }[]
     };
 
     for (const jourPlanning of dto.plannings) {
@@ -172,7 +233,9 @@ export class PlanningsService {
                 type: PlanningType.ONLINE,
                 hopitalId: null,
                 isOff: true,
-                isActive: true
+                isActive: true,
+                consultationPrice: null,
+                consultationDuration: null
               }
             });
             results.created.push({ jour, status: 'off', planningId: offRecord.planningId });
@@ -181,16 +244,54 @@ export class PlanningsService {
         else if (slots && slots.length > 0) {
           this.logger.log(`Processing ${slots.length} slots for ${jour}`);
           
+          // Valider chaque créneau individuellement et collecter les erreurs
+          const validSlots: PlanningSlotDto[] = [];
+          const slotErrors: { slot: string; error: string }[] = [];
+          
           for (const slot of slots) {
-            await this.validateSlot(dto.medecinId, slot, jour);
+            const validation = await this.validateSlot(dto.medecinId, slot, jour);
+            if (validation.valid) {
+              validSlots.push(slot);
+            } else {
+              slotErrors.push({
+                slot: `${slot.debutHour}-${slot.endHour} (${slot.type})`,
+                error: validation.error!
+              });
+            }
           }
-          this.checkOverlaps(slots, jour);
+          
+          // Ajouter les erreurs de validation aux résultats
+          for (const err of slotErrors) {
+            results.errors.push({
+              jour,
+              slot: err.slot,
+              error: err.error
+            });
+          }
+          
+          // S'il n'y a pas de créneaux valides, passer au jour suivant
+          if (validSlots.length === 0) {
+            this.logger.log(`No valid slots for ${jour}, skipping...`);
+            continue;
+          }
+          
+          // Vérifier les chevauchements entre les créneaux valides
+          const overlapCheck = this.checkOverlaps(validSlots, jour);
+          if (!overlapCheck.valid) {
+            results.errors.push({
+              jour,
+              error: overlapCheck.error!
+            });
+            continue;
+          }
 
+          // Supprimer le OFF si existant
           await this.prisma.planning.deleteMany({
             where: { medecinId: dto.medecinId, jour, isOff: true }
           });
 
-          for (const slot of slots) {
+          // Traiter les créneaux valides
+          for (const slot of validSlots) {
             const hopitalIdValue = slot.hopitalId || null;
             
             const existing = await this.prisma.planning.findFirst({
@@ -204,6 +305,8 @@ export class PlanningsService {
               }
             });
             
+            // Pour les créneaux en ligne, on ignore les prix/durées
+            // Pour les créneaux en présentiel, on stocke les valeurs saisies
             const planningData = {
               medecinId: dto.medecinId,
               jour,
@@ -213,7 +316,10 @@ export class PlanningsService {
               hopitalId: hopitalIdValue,
               salle: slot.salle,
               isOff: false,
-              isActive: true
+              isActive: true,
+              // Seulement pour IN_PERSON on stocke les valeurs
+              consultationPrice: slot.type === PlanningType.IN_PERSON ? slot.consultationPrice : null,
+              consultationDuration: slot.type === PlanningType.IN_PERSON ? slot.consultationDuration : null
             };
             
             if (existing) {
@@ -232,11 +338,12 @@ export class PlanningsService {
             }
           }
           
+          // Supprimer les créneaux qui ne sont plus dans la nouvelle liste
           const existingSlots = await this.prisma.planning.findMany({
             where: { medecinId: dto.medecinId, jour, isOff: false }
           });
           
-          const newSlotKeys = slots.map(s => {
+          const newSlotKeys = validSlots.map(s => {
             const hopitalIdVal = s.hopitalId || null;
             return `${s.debutHour}|${s.type}|${hopitalIdVal}`;
           });
@@ -266,9 +373,15 @@ export class PlanningsService {
       }
     }
 
+    // Construire le message de résultat
+    let message = `Plannings traités: ${results.created.length} créé(s), ${results.updated.length} mis à jour, ${results.deleted.length} supprimé(s)`;
+    if (results.errors.length > 0) {
+      message += `, ${results.errors.length} erreur(s)`;
+    }
+    
     return {
-      message: `Plannings traités: ${results.created.length} créé(s), ${results.updated.length} mis à jour, ${results.deleted.length} supprimé(s), ${results.errors.length} erreur(s)`,
-      messageE: `Plannings processed: ${results.created.length} created, ${results.updated.length} updated, ${results.deleted.length} deleted, ${results.errors.length} error(s)`,
+      message,
+      messageE: `Plannings processed: ${results.created.length} created, ${results.updated.length} updated, ${results.deleted.length} deleted${results.errors.length > 0 ? `, ${results.errors.length} error(s)` : ''}`,
       data: results
     };
   }
@@ -315,7 +428,9 @@ export class PlanningsService {
             type: PlanningType.ONLINE,
             hopitalId: null,
             isOff: true,
-            isActive: true
+            isActive: true,
+            consultationPrice: null,
+            consultationDuration: null
           }
         });
         return {
@@ -339,16 +454,10 @@ export class PlanningsService {
 
   /** Récupérer tous les plannings d'un médecin groupés par jour */
   async findByMedecin(medecinId: number) {
-    const medecin = await this.prisma.user.findUnique({
-      where: { userId: medecinId, userType: UserType.MEDECIN }
-    });
-
-    if (!medecin) {
-      throw new NotFoundException({
-        message: `Médecin avec ID ${medecinId} introuvable`,
-        messageE: `Doctor with ID ${medecinId} not found`
-      });
-    }
+    const medecin = await this.getMedecinWithSpeciality(medecinId);
+    
+    // Ici medecin.speciality n'est pas null grâce à getMedecinWithSpeciality
+    const speciality = medecin.speciality!;
 
     const plannings = await this.prisma.planning.findMany({
       where: { medecinId, isActive: true },
@@ -381,7 +490,9 @@ export class PlanningsService {
             hopitalId: p.hopitalId,
             hopitalName: p.hopital?.firstName,
             hopitalAddress: p.hopital?.address,
-            salle: p.salle
+            salle: p.salle,
+            consultationPrice: p.consultationPrice ? Number(p.consultationPrice) : null,
+            consultationDuration: p.consultationDuration
           }))
         };
       }
@@ -390,6 +501,8 @@ export class PlanningsService {
     return {
       medecinId,
       medecinName: `${medecin.firstName} ${medecin.lastName}`,
+      defaultOnlinePrice: Number(speciality.consultationPrice),
+      defaultOnlineDuration: speciality.consultationDuration,
       plannings: grouped
     };
   }
@@ -406,33 +519,16 @@ export class PlanningsService {
       });
     }
 
-    // 1. Vérifier le médecin et récupérer la durée de consultation de sa spécialité
-    const med = await this.prisma.user.findUnique({
-      where: { userId: medecinId },
-      include: { speciality: true }
-    });
-
-    if (!med || med.userType !== UserType.MEDECIN) {
-      throw new NotFoundException({
-        message: `Médecin ${medecinId} introuvable`,
-        messageE: `Doctor ${medecinId} not found`
-      });
-    }
-
-    if (!med.speciality) {
-      throw new BadRequestException({
-        message: 'Le médecin n\'a pas de spécialité configurée',
-        messageE: 'Doctor does not have a specialty configured'
-      });
-    }
-
-    // Durée de consultation en minutes
-    const consultationDuration = med.speciality.consultationDuration;
-    this.logger.log(`Consultation duration: ${consultationDuration} minutes`);
+    const medecin = await this.getMedecinWithSpeciality(medecinId);
+    
+    // Ici medecin.speciality n'est pas null grâce à getMedecinWithSpeciality
+    const speciality = medecin.speciality!;
+    const consultationDurationDefault = speciality.consultationDuration;
+    const consultationPriceDefault = Number(speciality.consultationPrice);
     
     const jour = this.getJourFromDate(dto.date);
 
-    // 2. Vérifier si le jour est OFF
+    // Vérifier si le jour est OFF
     const offRecord = await this.prisma.planning.findFirst({
       where: {
         medecinId,
@@ -452,7 +548,7 @@ export class PlanningsService {
       };
     }
 
-    // 3. Récupérer les plannings pour ce jour
+    // Récupérer les plannings pour ce jour
     const whereCondition: any = {
       medecinId,
       jour,
@@ -482,8 +578,8 @@ export class PlanningsService {
       };
     }
 
-    // 4. Générer les créneaux avec pause de 5 minutes entre chaque
-    // Exemple: pour une consultation de 30min, créneaux: 8:00-8:30, 8:35-9:05, etc.
+    // Générer les créneaux avec pause de 5 minutes entre chaque
+    const PAUSE_MINUTES = 5;
     const allSlots: Array<{
       start: string;
       end: string;
@@ -492,21 +588,37 @@ export class PlanningsService {
       hopitalName: string | undefined;
       hopitalAddress: string | null | undefined;
       salle: string | null;
+      price: number;
+      duration: number;
     }> = [];
-    
-    const PAUSE_MINUTES = 5; // 5 minutes de pause entre les créneaux
-    const step = consultationDuration + PAUSE_MINUTES;
     
     for (const plan of plans) {
       const startMin = this.timeToMinutes(plan.debutHour);
       const endMin = this.timeToMinutes(plan.endHour);
       
-      this.logger.log(`Generating slots for ${plan.debutHour}-${plan.endHour}, duration: ${consultationDuration}min, step: ${step}min`);
+      let slotDuration: number;
+      let slotPrice: number;
       
-      // Générer les créneaux à partir de l'heure de début
-      for (let m = startMin; m + consultationDuration <= endMin; m += step) {
+      // IMPORTANT: 
+      // - ONLINE: on prend TOUJOURS les valeurs actuelles de la spécialité
+      // - IN_PERSON: on utilise les valeurs stockées dans le planning
+      if (plan.type === PlanningType.ONLINE) {
+        slotDuration = consultationDurationDefault;
+        slotPrice = consultationPriceDefault;
+        this.logger.log(`Online slot: using default duration=${slotDuration}, price=${slotPrice}`);
+      } else {
+        // En présentiel: utiliser les valeurs stockées (converties en number)
+        slotDuration = plan.consultationDuration || consultationDurationDefault;
+        slotPrice = plan.consultationPrice ? Number(plan.consultationPrice) : consultationPriceDefault;
+        this.logger.log(`In-person slot: using stored duration=${slotDuration}, price=${slotPrice}`);
+      }
+      
+      const step = slotDuration + PAUSE_MINUTES;
+      
+      // Générer les créneaux
+      for (let m = startMin; m + slotDuration <= endMin; m += step) {
         const start = this.minutesToTime(m);
-        const end = this.minutesToTime(m + consultationDuration);
+        const end = this.minutesToTime(m + slotDuration);
         
         allSlots.push({
           start,
@@ -515,14 +627,16 @@ export class PlanningsService {
           hopitalId: plan.hopitalId,
           hopitalName: plan.hopital?.firstName,
           hopitalAddress: plan.hopital?.address,
-          salle: plan.salle
+          salle: plan.salle,
+          price: slotPrice,
+          duration: slotDuration
         });
       }
     }
 
     this.logger.log(`Generated ${allSlots.length} total slots before filtering`);
 
-    // 5. Récupérer les réservations existantes pour cette date
+    // Récupérer les réservations existantes pour cette date
     const existingReservations = await this.prisma.reservation.findMany({
       where: {
         medecinId,
@@ -533,16 +647,14 @@ export class PlanningsService {
 
     this.logger.log(`Found ${existingReservations.length} existing reservations`);
 
-    // 6. Filtrer les créneaux qui ne sont pas déjà réservés
+    // Filtrer les créneaux qui ne sont pas déjà réservés
     const availableSlots = allSlots.filter(slot => {
       const sMin = this.timeToMinutes(slot.start);
       const eMin = this.timeToMinutes(slot.end);
       
-      // Vérifier si ce créneau chevauche une réservation existante
       const isOverlapping = existingReservations.some(r => {
         const rStart = this.timeToMinutes(r.hour);
-        const rEnd = rStart + consultationDuration;
-        // Chevauchement si les intervalles se croisent
+        const rEnd = rStart + slot.duration;
         return sMin < rEnd && eMin > rStart;
       });
       
@@ -563,15 +675,7 @@ export class PlanningsService {
   /** Supprimer tous les plannings d'un médecin */
   async removeAll(medecinId: number) {
     const medecin = await this.prisma.user.findUnique({
-      where: { userId: medecinId, userType: UserType.MEDECIN },
-      include: {
-        reservationsM: {
-          where: {
-            date: { gte: new Date().toISOString().split('T')[0] },
-            status: { not: 'CANCELLED' }
-          }
-        }
-      }
+      where: { userId: medecinId, userType: UserType.MEDECIN }
     });
 
     if (!medecin) {
@@ -581,11 +685,19 @@ export class PlanningsService {
       });
     }
 
-    if (medecin.reservationsM.length > 0) {
+    const reservationsFutures = await this.prisma.reservation.findMany({
+      where: {
+        medecinId,
+        date: { gte: new Date().toISOString().split('T')[0] },
+        status: { not: 'CANCELLED' }
+      }
+    });
+
+    if (reservationsFutures.length > 0) {
       throw new ConflictException({
-        message: `Impossible de supprimer : ${medecin.reservationsM.length} réservation(s) future(s) existent`,
-        messageE: `Cannot delete: ${medecin.reservationsM.length} future reservation(s) exist`,
-        reservations: medecin.reservationsM
+        message: `Impossible de supprimer : ${reservationsFutures.length} réservation(s) future(s) existent`,
+        messageE: `Cannot delete: ${reservationsFutures.length} future reservation(s) exist`,
+        reservations: reservationsFutures
       });
     }
 

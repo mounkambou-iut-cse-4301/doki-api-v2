@@ -11,7 +11,9 @@ import {
   IsBoolean, 
   ValidateIf,
   IsArray,
-  ValidateNested
+  ValidateNested,
+  IsNumber,
+  Min
 } from 'class-validator';
 import { PlanningType } from 'generated/prisma';
 
@@ -41,6 +43,21 @@ export class PlanningSlotDto {
   @IsOptional()
   @IsString()
   salle?: string;
+
+  // Ces champs sont obligatoires UNIQUEMENT pour les créneaux en présentiel
+  @ApiPropertyOptional({ description: 'Prix de consultation (obligatoire pour les créneaux en présentiel)', example: 15000 })
+  @ValidateIf(o => o.type === 'IN_PERSON')
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  consultationPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Durée de consultation en minutes (obligatoire pour les créneaux en présentiel)', example: 30 })
+  @ValidateIf(o => o.type === 'IN_PERSON')
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(15)
+  consultationDuration?: number;
 }
 
 export class JourPlanningDto {

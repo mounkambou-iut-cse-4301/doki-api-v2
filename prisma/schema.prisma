@@ -216,6 +216,10 @@ model Abonnement {
 
 
 // prisma/schema.prisma
+// prisma/schema.prisma - Modifier le modèle Planning
+
+// prisma/schema.prisma - Modifier le modèle Planning
+
 model Planning {
   planningId Int      @id @default(autoincrement())
   medecinId  Int
@@ -227,6 +231,11 @@ model Planning {
   salle      String?
   isActive   Boolean  @default(true)
   isOff      Boolean  @default(false)
+  
+  // Uniquement pour les créneaux en présentiel (IN_PERSON)
+  consultationPrice Decimal? @db.Decimal(10, 2)  // Prix personnalisé pour ce créneau (NULL = utiliser prix par défaut)
+  consultationDuration Int?   // Durée personnalisée pour ce créneau (NULL = utiliser durée par défaut)
+  
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -1286,7 +1286,7 @@ async signupMedecin(dto: CreateMedecinDto) {
   // }
 // 6. GET ONE USER BY ID AVEC RELATIONS
 
-// 5. GET ALL USERS AVEC FILTRES & PAGINATION (Version simplifiée)
+// 5. GET ALL USERS AVEC FILTRES & PAGINATION (Version corrigée)
 async findAll(query: QueryUserDto) {
   try {
     const page: number = query.page != null ? Number(query.page) : 1;
@@ -1324,24 +1324,23 @@ async findAll(query: QueryUserDto) {
         where,
         include: {
           speciality: true,
-          // Garder seulement les feedbacks pour la note moyenne
+          plannings: { 
+            take: 1, 
+            orderBy: { createdAt: 'desc' } 
+          },
+          soldes: { 
+            take: 1, 
+            orderBy: { updatedAt: 'desc' } 
+          },
+          // Pour les feedbacks, ne pas inclure les relations patient/medecin
           feedbacksMed: {
             take: 3,
             orderBy: { createdAt: 'desc' },
-            include: {
-              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
           },
           feedbacksPat: {
             take: 3,
             orderBy: { createdAt: 'desc' },
-            include: {
-              medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
           },
-          plannings: { take: 1, orderBy: { createdAt: 'desc' } },
-          soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
-          // Retirer toutes les réservations, ordonnances, abonnements et vidéos
         },
         skip,
         take: limit,
@@ -1365,15 +1364,39 @@ async findAll(query: QueryUserDto) {
       );
     }
 
-    const items1 = items.map(
-      ({
-        password,
-        plannings,
-        soldes,
-        feedbacksMed,
-        feedbacksPat,
-        ...safe
-      }) => ({
+    // Récupérer les informations patient/medecin séparément pour les feedbacks si nécessaire
+    const items1 = await Promise.all(items.map(async (user) => {
+      // Récupérer les noms des patients pour les feedbacksMed
+      const feedbacksMedWithPatients = await Promise.all(
+        user.feedbacksMed.map(async (feedback) => {
+          const patient = await this.prisma.user.findUnique({
+            where: { userId: feedback.patientId },
+            select: { userId: true, firstName: true, lastName: true, profile: true }
+          });
+          return {
+            ...feedback,
+            patient: patient || null
+          };
+        })
+      );
+
+      // Récupérer les noms des médecins pour les feedbacksPat
+      const feedbacksPatWithMedecins = await Promise.all(
+        user.feedbacksPat.map(async (feedback) => {
+          const medecin = await this.prisma.user.findUnique({
+            where: { userId: feedback.medecinId },
+            select: { userId: true, firstName: true, lastName: true, profile: true }
+          });
+          return {
+            ...feedback,
+            medecin: medecin || null
+          };
+        })
+      );
+
+      const { password, plannings, soldes, feedbacksMed, feedbacksPat, ...safe } = user;
+      
+      return {
         ...safe,
         planning: plannings?.[0] ?? null,
         solde: soldes?.[0] ?? null,
@@ -1383,10 +1406,10 @@ async findAll(query: QueryUserDto) {
             : null,
         lastFeedbacks:
           safe.userType === UserType.MEDECIN
-            ? feedbacksMed
-            : feedbacksPat,
-      }),
-    );
+            ? feedbacksMedWithPatients
+            : feedbacksPatWithMedecins,
+      };
+    }));
 
     return {
       items1,
@@ -1401,7 +1424,7 @@ async findAll(query: QueryUserDto) {
   }
 }
 
-// 6. GET ONE USER BY ID AVEC RELATIONS (Version simplifiée)
+// 6. GET ONE USER BY ID AVEC RELATIONS (Version simplifiée sans relations problématiques)
 async findOne(id: number) {
   try {
     const user = await this.prisma.user.findUnique({
@@ -1410,25 +1433,18 @@ async findOne(id: number) {
         speciality: true,
         favoritesMed: true,
         favoritesPat: true,
-        // Garder seulement les feedbacks
-        feedbacksMed: {
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-          },
-        },
-        feedbacksPat: {
-          take: 3,
-          orderBy: { createdAt: 'asc' },
-          include: {
-            medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-          },
-        },
         roles: { include: { role: true } },
         plannings: { take: 1, orderBy: { createdAt: 'desc' } },
         soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
-        // Retirer toutes les réservations, ordonnances, abonnements et vidéos
+        // Ne pas inclure les feedbacks avec leurs relations pour éviter les erreurs
+        feedbacksMed: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+        },
+        feedbacksPat: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -1439,7 +1455,34 @@ async findOne(id: number) {
       });
     }
 
-    // Calculer la note moyenne complète pour le médecin
+    // Récupérer les informations patient/medecin séparément pour les feedbacks
+    const feedbacksMedWithPatients = await Promise.all(
+      user.feedbacksMed.map(async (feedback) => {
+        const patient = await this.prisma.user.findUnique({
+          where: { userId: feedback.patientId },
+          select: { userId: true, firstName: true, lastName: true, profile: true }
+        });
+        return {
+          ...feedback,
+          patient: patient || null
+        };
+      })
+    );
+
+    const feedbacksPatWithMedecins = await Promise.all(
+      user.feedbacksPat.map(async (feedback) => {
+        const medecin = await this.prisma.user.findUnique({
+          where: { userId: feedback.medecinId },
+          select: { userId: true, firstName: true, lastName: true, profile: true }
+        });
+        return {
+          ...feedback,
+          medecin: medecin || null
+        };
+      })
+    );
+
+    // Calculer la note moyenne pour le médecin
     let feedbackRating: { average: number; count: number } | null = null;
     if (user.userType === UserType.MEDECIN) {
       const agg = await this.prisma.feedback.aggregate({
@@ -1467,7 +1510,9 @@ async findOne(id: number) {
       planning: plannings?.[0] ?? null,
       solde: soldes?.[0] ?? null,
       feedbackRating,
-      lastFeedbacks: user.userType === UserType.MEDECIN ? feedbacksMed : feedbacksPat,
+      lastFeedbacks: user.userType === UserType.MEDECIN 
+        ? feedbacksMedWithPatients 
+        : feedbacksPatWithMedecins,
     };
   } catch (error) {
     if (error instanceof NotFoundException) throw error;
@@ -1477,7 +1522,6 @@ async findOne(id: number) {
     });
   }
 }
-
   // 7. SIGNUP ADMIN
   async signupAdmin(dto: CreateAdminDto) {
     try {

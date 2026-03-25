@@ -1142,157 +1142,6 @@ async signupMedecin(dto: CreateMedecinDto) {
   // }
 
   // 5. GET ALL USERS AVEC FILTRES & PAGINATION
-async findAll(query: QueryUserDto) {
-  try {
-    const page: number = query.page != null ? Number(query.page) : 1;
-    const limit: number = query.limit != null ? Number(query.limit) : 10;
-    if (page < 1 || limit < 1) {
-      throw new BadRequestException({
-        message: 'Page et limit doivent être >= 1',
-        messageE: 'Page and limit must be >= 1',
-      });
-    }
-    const skip = (page - 1) * limit;
-
-    const q = (query.q && query.q.trim())
-      ? query.q.trim()
-      : (query.name && query.name.trim())
-        ? query.name.trim()
-        : undefined;
-
-    const where: any = {};
-    if (q) {
-      where.OR = [
-        { firstName: { contains: q } },
-        { lastName: { contains: q } },
-        { email: { contains: q } },
-        { phone: { contains: q } },
-      ];
-    }
-    if (query.userType) where.userType = query.userType;
-    if (typeof query.isBlock === 'boolean') where.isBlock = query.isBlock;
-    if (query.specialityId != null) where.specialityId = Number(query.specialityId);
-    if (typeof query.isVerified === 'boolean') where.isVerified = query.isVerified;
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({
-        where,
-        include: {
-          speciality: true,
-
-          feedbacksMed: {
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
-          },
-          feedbacksPat: {
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
-          },
-          plannings: { take: 1, orderBy: { createdAt: 'desc' } },
-          soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
-          reservationsM: {
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            include: {  // Change from 'select' to 'include'
-              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
-          },
-          ordonnancesM: {
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            include: {  // Change from 'select' to 'include'
-              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
-          },
-          abonnementsM: {
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            include: {  // Change from 'select' to 'include'
-              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-            },
-          },
-          videos: {
-            take: 3,
-            orderBy: { createdAt: 'desc' },
-            select: {
-              videoId: true,
-              title: true,
-              path: true,
-              category: true,
-              createdAt: true,
-            },
-          },
-        },
-        skip,
-        take: limit,
-        orderBy: { firstName: 'asc' },
-      }),
-      this.prisma.user.count({ where }),
-    ]);
-
-    const medecinIds = items.filter(u => u.userType === UserType.MEDECIN).map(u => u.userId);
-    let ratingMap = new Map<number, { average: number; count: number }>();
-    if (medecinIds.length) {
-      const rows = await this.prisma.feedback.groupBy({
-        by: ['medecinId'],
-        where: { medecinId: { in: medecinIds } },
-        _avg: { note: true },
-        _count: { _all: true },
-      });
-      ratingMap = new Map(
-        rows.map(r => [r.medecinId, { average: r._avg.note ?? 0, count: r._count._all }]),
-      );
-    }
-
-    const items1 = items.map(
-      ({
-        password,
-        plannings,
-        soldes,
-        feedbacksMed,
-        feedbacksPat,
-        reservationsM,
-        ordonnancesM,
-        abonnementsM,
-        videos,
-        ...safe
-      }) => ({
-        ...safe,
-        planning: plannings?.[0] ?? null,
-        solde: soldes?.[0] ?? null,
-        feedbackRating:
-          safe.userType === UserType.MEDECIN
-            ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
-            : null,
-        lastFeedbacks:
-          safe.userType === UserType.MEDECIN
-            ? feedbacksMed
-            : feedbacksPat,
-        lastReservations: reservationsM ?? [],
-        lastOrdonnances: ordonnancesM ?? [],
-        lastAbonnements: abonnementsM ?? [],
-        lastVideos: videos ?? [],
-      }),
-    );
-
-    return {
-      items1,
-      meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
-    };
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    throw new BadRequestException({
-      message: `Erreur récupération : ${error.message}`,
-      messageE: `Error fetching users: ${error.message}`,
-    });
-  }
-}
 
   // 6. GET ONE USER BY ID AVEC RELATIONS
   // async findOne(id: number) {
@@ -1436,6 +1285,123 @@ async findAll(query: QueryUserDto) {
   //   }
   // }
 // 6. GET ONE USER BY ID AVEC RELATIONS
+
+// 5. GET ALL USERS AVEC FILTRES & PAGINATION (Version simplifiée)
+async findAll(query: QueryUserDto) {
+  try {
+    const page: number = query.page != null ? Number(query.page) : 1;
+    const limit: number = query.limit != null ? Number(query.limit) : 10;
+    if (page < 1 || limit < 1) {
+      throw new BadRequestException({
+        message: 'Page et limit doivent être >= 1',
+        messageE: 'Page and limit must be >= 1',
+      });
+    }
+    const skip = (page - 1) * limit;
+
+    const q = (query.q && query.q.trim())
+      ? query.q.trim()
+      : (query.name && query.name.trim())
+        ? query.name.trim()
+        : undefined;
+
+    const where: any = {};
+    if (q) {
+      where.OR = [
+        { firstName: { contains: q } },
+        { lastName: { contains: q } },
+        { email: { contains: q } },
+        { phone: { contains: q } },
+      ];
+    }
+    if (query.userType) where.userType = query.userType;
+    if (typeof query.isBlock === 'boolean') where.isBlock = query.isBlock;
+    if (query.specialityId != null) where.specialityId = Number(query.specialityId);
+    if (typeof query.isVerified === 'boolean') where.isVerified = query.isVerified;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        include: {
+          speciality: true,
+          // Garder seulement les feedbacks pour la note moyenne
+          feedbacksMed: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+          feedbacksPat: {
+            take: 3,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
+            },
+          },
+          plannings: { take: 1, orderBy: { createdAt: 'desc' } },
+          soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
+          // Retirer toutes les réservations, ordonnances, abonnements et vidéos
+        },
+        skip,
+        take: limit,
+        orderBy: { firstName: 'asc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    // Calculer la note moyenne pour les médecins
+    const medecinIds = items.filter(u => u.userType === UserType.MEDECIN).map(u => u.userId);
+    let ratingMap = new Map<number, { average: number; count: number }>();
+    if (medecinIds.length) {
+      const rows = await this.prisma.feedback.groupBy({
+        by: ['medecinId'],
+        where: { medecinId: { in: medecinIds } },
+        _avg: { note: true },
+        _count: { _all: true },
+      });
+      ratingMap = new Map(
+        rows.map(r => [r.medecinId, { average: r._avg.note ?? 0, count: r._count._all }]),
+      );
+    }
+
+    const items1 = items.map(
+      ({
+        password,
+        plannings,
+        soldes,
+        feedbacksMed,
+        feedbacksPat,
+        ...safe
+      }) => ({
+        ...safe,
+        planning: plannings?.[0] ?? null,
+        solde: soldes?.[0] ?? null,
+        feedbackRating:
+          safe.userType === UserType.MEDECIN
+            ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
+            : null,
+        lastFeedbacks:
+          safe.userType === UserType.MEDECIN
+            ? feedbacksMed
+            : feedbacksPat,
+      }),
+    );
+
+    return {
+      items1,
+      meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+    };
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+    throw new BadRequestException({
+      message: `Erreur récupération : ${error.message}`,
+      messageE: `Error fetching users: ${error.message}`,
+    });
+  }
+}
+
+// 6. GET ONE USER BY ID AVEC RELATIONS (Version simplifiée)
 async findOne(id: number) {
   try {
     const user = await this.prisma.user.findUnique({
@@ -1444,41 +1410,7 @@ async findOne(id: number) {
         speciality: true,
         favoritesMed: true,
         favoritesPat: true,
-        videos: {
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          select: { videoId: true, title: true, path: true, category: true, createdAt: true },
-        },
-        reservationsM: {
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          include: {  // Changé de select à include
-            patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-          },
-        },
-        ordonnancesM: {
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          include: {  // Changé de select à include
-            patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-          },
-        },
-        abonnementsM: {
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          include: {  // Changé de select à include
-            medecin: { select: { userId: true, firstName: true, lastName: true, email: true } },
-            patient: { select: { userId: true, firstName: true, lastName: true, email: true } },
-          },
-        },
-        abonnementsP: {
-          take: 3,
-          orderBy: { createdAt: 'desc' },
-          include: {  // Changé de select à include
-            medecin: { select: { userId: true, firstName: true, lastName: true, email: true } },
-            patient: { select: { userId: true, firstName: true, lastName: true, email: true } },
-          },
-        },
+        // Garder seulement les feedbacks
         feedbacksMed: {
           take: 3,
           orderBy: { createdAt: 'desc' },
@@ -1496,8 +1428,7 @@ async findOne(id: number) {
         roles: { include: { role: true } },
         plannings: { take: 1, orderBy: { createdAt: 'desc' } },
         soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
-        reservationsP: true,
-        ordonnancesP: true,
+        // Retirer toutes les réservations, ordonnances, abonnements et vidéos
       },
     });
 
@@ -1508,6 +1439,7 @@ async findOne(id: number) {
       });
     }
 
+    // Calculer la note moyenne complète pour le médecin
     let feedbackRating: { average: number; count: number } | null = null;
     if (user.userType === UserType.MEDECIN) {
       const agg = await this.prisma.feedback.aggregate({
@@ -1527,11 +1459,6 @@ async findOne(id: number) {
       soldes,
       feedbacksMed,
       feedbacksPat,
-      reservationsM,
-      ordonnancesM,
-      abonnementsM,
-      abonnementsP,
-      videos,
       ...user1
     } = user;
 
@@ -1541,12 +1468,6 @@ async findOne(id: number) {
       solde: soldes?.[0] ?? null,
       feedbackRating,
       lastFeedbacks: user.userType === UserType.MEDECIN ? feedbacksMed : feedbacksPat,
-      lastReservations: reservationsM ?? [],
-      lastOrdonnances: ordonnancesM ?? [],
-      lastAbonnements: abonnementsM ?? [],
-      lastVideos: videos ?? [],
-      // Si vous voulez aussi inclure abonnementsP dans la réponse
-      abonnementsPatient: abonnementsP ?? [],
     };
   } catch (error) {
     if (error instanceof NotFoundException) throw error;
@@ -1556,6 +1477,7 @@ async findOne(id: number) {
     });
   }
 }
+
   // 7. SIGNUP ADMIN
   async signupAdmin(dto: CreateAdminDto) {
     try {

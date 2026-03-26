@@ -89,6 +89,8 @@ CREATE TABLE `Planning` (
     `salle` VARCHAR(191) NULL,
     `isActive` BOOLEAN NOT NULL DEFAULT true,
     `isOff` BOOLEAN NOT NULL DEFAULT false,
+    `consultationPrice` DECIMAL(10, 2) NULL,
+    `consultationDuration` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 

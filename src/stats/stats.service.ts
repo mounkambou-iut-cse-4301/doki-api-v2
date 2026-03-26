@@ -8,38 +8,53 @@ export class StatsService {
 
   /**
    * Retourne:
-   * - abonnés: nombre d'abonnements confirmés pour le medecin
-   * - revenue: somme des transactions PAID liées aux reservations ou abonnements du medecin
+   * - abonnés: nombre d'abonnements confirmés pour la spécialité du médecin
+   * - revenue: somme des transactions PAID liées aux réservations du médecin
    */
   async medecinStats(medecinId: number) {
-    // vérifier existence medecin rapide (optionnel)
-    const doc = await this.prisma.user.findUnique({ where: { userId: medecinId } });
-    if (!doc) {
-      throw new NotFoundException({ message: `Médecin ${medecinId} introuvable.` });
+    // vérifier existence medecin
+    const medecin = await this.prisma.user.findUnique({ 
+      where: { userId: medecinId },
+      include: { speciality: true }
+    });
+    
+    if (!medecin) {
+      throw new NotFoundException({ 
+        message: `Médecin ${medecinId} introuvable.`,
+        messageE: `Doctor ${medecinId} not found.`
+      });
     }
 
-    // 1) nombre d'abonnés confirmés
-    const abonnésCount = await this.prisma.abonnement.count({
-      where: { medecinId, status: AbonnementStatus.CONFIRMED },
-    });
+    // 1) nombre d'abonnés confirmés pour la spécialité du médecin
+    let abonnésCount = 0;
+    
+    if (medecin.specialityId) {
+      abonnésCount = await this.prisma.abonnement.count({
+        where: { 
+          package: {
+            specialityId: medecin.specialityId
+          },
+          status: AbonnementStatus.CONFIRMED 
+        },
+      });
+    }
 
-    // 2) revenue: somme des transactions PAID liées soit à des reservations, soit à des abonnements
-    // on utilise l'aggregate sur Transaction avec filtre sur relations
+    // 2) revenue: somme des transactions PAID liées aux réservations du médecin
     const agg = await this.prisma.transaction.aggregate({
       _sum: { amount: true },
       where: {
         status: TransactionStatus.PAID,
-        OR: [
-          { reservations: { some: { medecinId } } },
-          { abonnements: { some: { medecinId } } },
-        ],
+        reservations: { 
+          some: { medecinId } 
+        },
       },
     });
 
-    const revenue = Number(agg._sum.amount ?? 0);
+    const revenue = Number(agg._sum?.amount ?? 0);
 
     return {
       medecinId,
+      speciality: medecin.speciality?.name || null,
       abonnés: abonnésCount,
       revenue,
     };

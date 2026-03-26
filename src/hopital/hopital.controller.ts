@@ -102,17 +102,18 @@ export class HopitalController {
     return this.hopitalService.removeMedecins(id, dto);
   }
 
-  @Get(':id/medecins')
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
-  @ApiGetHopitalMedecins()
-  async getMedecins(
-    @Param('id', ParseIntPipe) id: number,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-  ) {
-    return this.hopitalService.getMedecins(id, page, limit);
-  }
+ @Get(':id/medecins')
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
+@ApiGetHopitalMedecins()
+async getMedecins(
+  @Param('id', ParseIntPipe) id: number,
+  @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+  @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  @Query('search') search?: string,  // Ajout du paramètre search
+) {
+  return this.hopitalService.getMedecins(id, page, limit, search);
+}
 
   @Get(':id/reservations')
   @ApiBearerAuth('JWT-auth')

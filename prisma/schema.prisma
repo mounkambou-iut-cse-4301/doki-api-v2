@@ -1,5 +1,3 @@
-
-// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -11,7 +9,556 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-/* ========== Enums ========== */
+model User {
+  userId              Int              @id @default(autoincrement())
+  firstName           String
+  lastName            String
+  sex                 Sex
+  email               String
+  phone               String
+  password            String
+  userType            UserType
+  acceptPrivacy       Boolean          @default(false)
+  specialityId        Int?
+  city                String?
+  address             String?
+  addressHosp         String?
+  hospitalName        String?
+  longitude           Decimal?         @db.Decimal(10, 8)
+  latitude            Decimal?         @db.Decimal(10, 8)
+  profile             String?
+  weight              Decimal?         @db.Decimal(5, 2)
+  matricule           String?
+  expotoken           String?          @db.VarChar(255)
+  isBlock             Boolean          @default(false)
+  isVerified          Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  abonnementsP        Abonnement[]     @relation("PatientAbonnements")
+  casCreees           CasDifficile[]   @relation("CasDifficileCreator")
+  casReads            CasReadState[]
+  conversationsMed    Conversation[]   @relation("MedecinConversations")
+  conversationsPat    Conversation[]   @relation("PatientConversations")
+  favoritesMed        Favorite[]       @relation("MedecinFavorites")
+  favoritesPat        Favorite[]       @relation("PatientFavorites")
+  feedbacksMed        Feedback[]       @relation("MedecinFeedbacks")
+  feedbacksPat        Feedback[]       @relation("PatientFeedbacks")
+  Fiche               Fiche[]
+  medecinsAffilies    MedecinHopital[] @relation("HopitalAffiliations")
+  hopitalAffiliations MedecinHopital[] @relation("MedecinAffiliations")
+  messagesReceived    Message[]        @relation("MessageReceiver")
+  messagesSent        Message[]        @relation("MessageSender")
+  Notification        Notification[]
+  ordonnancesM        Ordonance[]      @relation("MedecinOrdonnances")
+  ordonnancesP        Ordonance[]      @relation("PatientOrdonnances")
+  PasswordReset       PasswordReset[]
+  planningsHopital    Planning[]       @relation("HopitalPlannings")
+  plannings           Planning[]
+  publicitesValidees  Publicite[]      @relation("PubliciteValidator")
+  publicitesAnnonceur Publicite[]      @relation("UserPublicites")
+  reservationsHopital Reservation[]    @relation("HopitalReservations")
+  reservationsM       Reservation[]    @relation("MedecinReservations")
+  reservationsP       Reservation[]    @relation("PatientReservations")
+  soldes              SoldeMedecin[]
+  Suivi               Suivi[]
+  speciality          Speciality?      @relation(fields: [specialityId], references: [specialityId])
+  roles               UserRole[]
+  videos              Video[]
+
+  @@unique([email, userType])
+  @@unique([phone, userType])
+  @@index([email])
+  @@index([phone])
+  @@index([specialityId], map: "User_specialityId_fkey")
+}
+
+model MedecinHopital {
+  medecinId Int
+  hopitalId Int
+  createdAt DateTime @default(now())
+  hopital   User     @relation("HopitalAffiliations", fields: [hopitalId], references: [userId])
+  medecin   User     @relation("MedecinAffiliations", fields: [medecinId], references: [userId])
+
+  @@id([medecinId, hopitalId])
+  @@index([hopitalId], map: "MedecinHopital_hopitalId_fkey")
+}
+
+model GroupePackage {
+  packageId           Int          @id @default(autoincrement())
+  nom                 String
+  specialityId        Int
+  nombreConsultations Int
+  chatInclus          Boolean      @default(false)
+  appelInclus         Boolean      @default(false)
+  prix                Decimal      @db.Decimal(10, 2)
+  dureeValiditeJours  Int
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  abonnements         Abonnement[]
+  speciality          Speciality   @relation(fields: [specialityId], references: [specialityId])
+
+  @@index([specialityId, isActive])
+}
+
+model Abonnement {
+  abonnementId                Int              @id @default(autoincrement())
+  patientId                   Int
+  packageId                   Int?
+  numberOfTimePlanReservation Int?
+  status                      AbonnementStatus @default(PENDING)
+  debutDate                   DateTime
+  endDate                     DateTime
+  amount                      Decimal?         @db.Decimal(10, 2)
+  transactionId               Int?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  package                     GroupePackage?   @relation(fields: [packageId], references: [packageId])
+  patient                     User             @relation("PatientAbonnements", fields: [patientId], references: [userId])
+  transaction                 Transaction?     @relation(fields: [transactionId], references: [transactionId])
+  reservations                Reservation[]
+
+  @@index([packageId], map: "Abonnement_packageId_fkey")
+  @@index([patientId], map: "Abonnement_patientId_fkey")
+  @@index([transactionId], map: "Abonnement_transactionId_fkey")
+}
+
+model Planning {
+  planningId           Int          @id @default(autoincrement())
+  medecinId            Int
+  jour                 String
+  debutHour            String
+  endHour              String
+  type                 PlanningType @default(ONLINE)
+  hopitalId            Int?
+  salle                String?
+  isActive             Boolean      @default(true)
+  isOff                Boolean      @default(false)
+  consultationPrice    Decimal?     @db.Decimal(10, 2)
+  consultationDuration Int?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  hopital              User?        @relation("HopitalPlannings", fields: [hopitalId], references: [userId])
+  medecin              User         @relation(fields: [medecinId], references: [userId])
+
+  @@unique([medecinId, jour, debutHour, type, hopitalId])
+  @@index([medecinId, jour, isActive])
+  @@index([hopitalId], map: "Planning_hopitalId_fkey")
+}
+
+model Reservation {
+  reservationId Int               @id @default(autoincrement())
+  date          String
+  hour          String
+  type          ReservationType
+  patientName   String
+  sex           Sex
+  age           Int?
+  description   String?
+  medecinId     Int
+  patientId     Int
+  location      String?
+  amount        Decimal?          @db.Decimal(10, 2)
+  transactionId Int?
+  status        ReservationStatus @default(PENDING)
+  hopitalId     Int?
+  abonnementId  Int?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  ordonance     Ordonance?        @relation("ReservationOrdonnances")
+  abonnement    Abonnement?       @relation(fields: [abonnementId], references: [abonnementId])
+  hopital       User?             @relation("HopitalReservations", fields: [hopitalId], references: [userId])
+  medecin       User              @relation("MedecinReservations", fields: [medecinId], references: [userId])
+  patient       User              @relation("PatientReservations", fields: [patientId], references: [userId])
+  transaction   Transaction?      @relation(fields: [transactionId], references: [transactionId])
+
+  @@index([abonnementId], map: "Reservation_abonnementId_fkey")
+  @@index([hopitalId], map: "Reservation_hopitalId_fkey")
+  @@index([medecinId], map: "Reservation_medecinId_fkey")
+  @@index([patientId], map: "Reservation_patientId_fkey")
+  @@index([transactionId], map: "Reservation_transactionId_fkey")
+}
+
+model Publicite {
+  publiciteId      Int             @id @default(autoincrement())
+  annonceurType    AdvertiserType
+  annonceurId      Int
+  typeContenu      ContentType
+  urlContenu       String
+  titre            String
+  description      String?
+  dateDebut        DateTime
+  dateFin          DateTime
+  statut           PubliciteStatus @default(PENDING_VALIDATION)
+  montant          Decimal         @db.Decimal(10, 2)
+  transactionId    Int?
+  adminValidatorId Int?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  validator        User?           @relation("PubliciteValidator", fields: [adminValidatorId], references: [userId])
+  annonceur        User            @relation("UserPublicites", fields: [annonceurId], references: [userId])
+  transaction      Transaction?    @relation(fields: [transactionId], references: [transactionId])
+
+  @@index([adminValidatorId], map: "Publicite_adminValidatorId_fkey")
+  @@index([annonceurId], map: "Publicite_annonceurId_fkey")
+  @@index([transactionId], map: "Publicite_transactionId_fkey")
+}
+
+model Transaction {
+  transactionId Int               @id @default(autoincrement())
+  paymentId     String?
+  status        TransactionStatus @default(PENDING)
+  amount        Decimal           @db.Decimal(10, 2)
+  type          TransactionType
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  abonnements   Abonnement[]
+  publicites    Publicite[]
+  reservations  Reservation[]
+}
+
+model Conversation {
+  conversationId Int       @id @default(autoincrement())
+  medecinId      Int
+  patientId      Int
+  lastMessageAt  DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  medecin        User      @relation("MedecinConversations", fields: [medecinId], references: [userId])
+  patient        User      @relation("PatientConversations", fields: [patientId], references: [userId])
+  messages       Message[]
+
+  @@unique([medecinId, patientId])
+  @@index([patientId], map: "Conversation_patientId_fkey")
+}
+
+model Message {
+  messageId      Int           @id @default(autoincrement())
+  kind           MessageKind   @default(TEXT)
+  conversationId Int?
+  casId          Int?
+  senderId       Int
+  receiverId     Int?
+  content        String?
+  meta           Json?
+  ficheId        Int?
+  isRead         Boolean       @default(false)
+  isAnonymous    Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  cas            CasDifficile? @relation(fields: [casId], references: [casId])
+  conversation   Conversation? @relation(fields: [conversationId], references: [conversationId])
+  fiche          Fiche?        @relation(fields: [ficheId], references: [ficheId])
+  receiver       User?         @relation("MessageReceiver", fields: [receiverId], references: [userId])
+  sender         User          @relation("MessageSender", fields: [senderId], references: [userId])
+
+  @@index([casId], map: "Message_casId_fkey")
+  @@index([conversationId], map: "Message_conversationId_fkey")
+  @@index([ficheId], map: "Message_ficheId_fkey")
+  @@index([receiverId], map: "Message_receiverId_fkey")
+  @@index([senderId], map: "Message_senderId_fkey")
+}
+
+model CasDifficile {
+  casId       Int            @id @default(autoincrement())
+  name        String
+  description String?
+  diseaseCode String?
+  createdBy   Int
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  creator     User           @relation("CasDifficileCreator", fields: [createdBy], references: [userId])
+  reads       CasReadState[]
+  messages    Message[]
+
+  @@index([createdBy], map: "CasDifficile_createdBy_fkey")
+}
+
+model CasReadState {
+  id         Int          @id @default(autoincrement())
+  casId      Int
+  userId     Int
+  lastReadAt DateTime     @default(now())
+  cas        CasDifficile @relation(fields: [casId], references: [casId])
+  user       User         @relation(fields: [userId], references: [userId])
+
+  @@unique([casId, userId])
+  @@index([userId], map: "CasReadState_userId_fkey")
+}
+
+model Fiche {
+  ficheId     Int       @id @default(autoincrement())
+  title       String
+  description String?
+  createdBy   Int
+  isActive    Boolean   @default(true)
+  questions   Json
+  responses   Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  creator     User      @relation(fields: [createdBy], references: [userId])
+  requests    Message[]
+
+  @@index([createdBy], map: "Fiche_createdBy_fkey")
+}
+
+model Notification {
+  notificationId Int      @id @default(autoincrement())
+  title          String
+  message        String
+  isRead         Boolean  @default(false)
+  userId         Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [userId])
+
+  @@index([userId], map: "Notification_userId_fkey")
+}
+
+model Speciality {
+  specialityId                Int             @id @default(autoincrement())
+  name                        String
+  consultationPrice           Decimal         @db.Decimal(10, 2)
+  consultationDuration        Int
+  planMonthAmount             Decimal         @db.Decimal(10, 2)
+  numberOfTimePlanReservation Int
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  groupePackages              GroupePackage[]
+  users                       User[]
+}
+
+model Feedback {
+  feedbackId Int      @id @default(autoincrement())
+  medecinId  Int
+  patientId  Int
+  note       Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  medecin    User     @relation("MedecinFeedbacks", fields: [medecinId], references: [userId])
+  patient    User     @relation("PatientFeedbacks", fields: [patientId], references: [userId])
+
+  @@index([medecinId], map: "Feedback_medecinId_fkey")
+  @@index([patientId], map: "Feedback_patientId_fkey")
+}
+
+model Favorite {
+  favoriteId Int      @id @default(autoincrement())
+  medecinId  Int
+  patientId  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  medecin    User     @relation("MedecinFavorites", fields: [medecinId], references: [userId])
+  patient    User     @relation("PatientFavorites", fields: [patientId], references: [userId])
+
+  @@index([medecinId], map: "Favorite_medecinId_fkey")
+  @@index([patientId], map: "Favorite_patientId_fkey")
+}
+
+model Video {
+  videoId     Int            @id @default(autoincrement())
+  title       String
+  path        String
+  description String?
+  categoryId  Int?
+  medecinId   Int
+  duree       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  category    CategoryVideo? @relation(fields: [categoryId], references: [categoryId])
+  medecin     User           @relation(fields: [medecinId], references: [userId])
+
+  @@index([categoryId], map: "Video_categoryId_fkey")
+  @@index([medecinId], map: "Video_medecinId_fkey")
+}
+
+model CategoryVideo {
+  categoryId  Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  coverImage  String?
+  videos      Video[]
+}
+
+model SoldeMedecin {
+  soldeMedecinId Int      @id @default(autoincrement())
+  solde          Decimal  @default(0.00) @db.Decimal(10, 2)
+  medecinId      Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  medecin        User     @relation(fields: [medecinId], references: [userId])
+
+  @@index([medecinId], map: "SoldeMedecin_medecinId_fkey")
+}
+
+model Ordonance {
+  ordonanceId     Int         @id @default(autoincrement())
+  name            String?     @db.VarChar(255)
+  dureeTraitement String?     @db.VarChar(100)
+  traitement      Json?
+  comment         String?
+  medecinId       Int
+  patientId       Int
+  images          Json?
+  reservationId   Int         @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  medecin         User        @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
+  patient         User        @relation("PatientOrdonnances", fields: [patientId], references: [userId])
+  reservation     Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
+  Suivi           Suivi[]
+
+  @@index([medecinId], map: "Ordonance_medecinId_fkey")
+  @@index([patientId], map: "Ordonance_patientId_fkey")
+}
+
+model Suivi {
+  suiviId           Int        @id @default(autoincrement())
+  name              String
+  dosage            String?
+  posologie         String?
+  forme             String?
+  voie              String?
+  instructions      String?
+  startDate         DateTime
+  endDate           DateTime
+  frequency         Json
+  notificationTimes Json
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  patientId         Int
+  ordonanceId       Int?
+  ordonnance        Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
+  patient           User       @relation(fields: [patientId], references: [userId])
+
+  @@index([ordonanceId], map: "Suivi_ordonanceId_fkey")
+  @@index([patientId], map: "Suivi_patientId_fkey")
+}
+
+model PasswordReset {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  email     String
+  otpHash   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [userId])
+
+  @@index([userId], map: "PasswordReset_userId_fkey")
+}
+
+model Category {
+  categoryId  Int                 @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  formations  FormationContinue[]
+  Lesson      Lesson[]
+}
+
+model FormationContinue {
+  formationId Int       @id @default(autoincrement())
+  name        String
+  categoryId  Int?
+  competence  String
+  dureeHeures Int
+  comment     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  category    Category? @relation(fields: [categoryId], references: [categoryId])
+  lessons     Lesson[]
+
+  @@index([categoryId], map: "FormationContinue_categoryId_fkey")
+}
+
+model Lesson {
+  lessonId    Int               @id @default(autoincrement())
+  title       String
+  description String?
+  categoryId  Int?
+  fileUrl     String?
+  orderIndex  Int?
+  formationId Int
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  category    Category?         @relation(fields: [categoryId], references: [categoryId])
+  formation   FormationContinue @relation(fields: [formationId], references: [formationId])
+
+  @@index([categoryId], map: "Lesson_categoryId_fkey")
+  @@index([formationId], map: "Lesson_formationId_fkey")
+}
+
+model Role {
+  roleId      Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  permissionId Int              @id @default(autoincrement())
+  name         String           @unique
+  description  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  roles        RolePermission[]
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  assignedAt   DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [permissionId])
+  role         Role       @relation(fields: [roleId], references: [roleId])
+
+  @@id([roleId, permissionId])
+  @@index([permissionId], map: "RolePermission_permissionId_fkey")
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  assignedAt DateTime @default(now())
+  role       Role     @relation(fields: [roleId], references: [roleId])
+  user       User     @relation(fields: [userId], references: [userId])
+
+  @@id([userId, roleId])
+  @@index([roleId], map: "UserRole_roleId_fkey")
+}
+
+model Medicament {
+  medicamentId   Int      @id @default(autoincrement())
+  name           String
+  nameCommercial String?
+  nameLabo       String?
+  dosage         String?
+  forme          String?
+  voie           String?
+  posologie      String?
+  comment        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ProtocoleOrdonance {
+  protocoleId Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(255)
+  description String?  @db.VarChar(500)
+  traitement  Json
+  images      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// ========== Enums ==========
 enum Sex {
   MALE
   FEMALE
@@ -84,546 +631,28 @@ enum PubliciteStatus {
   TERMINATED
   REJECTED
 }
+// Enum pour les types de commission
+enum CommissionType {
+  PERCENTAGE
+  FIXED
+}
 
-/* ========== MODELS ========== */
-
-model User {
-  userId        Int      @id @default(autoincrement())
-  firstName     String
-  lastName      String
-  sex           Sex
-  email         String   
-  phone         String   
-  password      String
-  userType      UserType
-  acceptPrivacy Boolean  @default(false)
-  specialityId  Int?
-  city          String?
-  address       String?
-  addressHosp   String?
-  hospitalName  String?
-  longitude     Decimal? @db.Decimal(10, 8)
-  latitude      Decimal? @db.Decimal(10, 8)
-  profile       String?
-  weight        Decimal? @db.Decimal(5, 2)
-  matricule     String?
-  expotoken     String?  @db.VarChar(255)
-  isBlock       Boolean  @default(false)
-  isVerified    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  speciality    Speciality?    @relation(fields: [specialityId], references: [specialityId])
-
-  /* Relations existantes */
-  feedbacksMed  Feedback[]     @relation("MedecinFeedbacks")
-  feedbacksPat  Feedback[]     @relation("PatientFeedbacks")
-  favoritesMed  Favorite[]     @relation("MedecinFavorites")
-  favoritesPat  Favorite[]     @relation("PatientFavorites")
-  videos        Video[]
-  reservationsM Reservation[]  @relation("MedecinReservations")
-  reservationsP Reservation[]  @relation("PatientReservations")
-  plannings     Planning[]
-  abonnementsM  Abonnement[]   @relation("MedecinAbonnements")
-  abonnementsP  Abonnement[]   @relation("PatientAbonnements")  // ← Remis
-  ordonnancesM  Ordonance[]    @relation("MedecinOrdonnances")
-  ordonnancesP  Ordonance[]    @relation("PatientOrdonnances")
-  soldes        SoldeMedecin[]
-
-  PasswordReset PasswordReset[]
-  Notification  Notification[]
-  Suivi         Suivi[]
-
-  conversationsMed Conversation[] @relation("MedecinConversations")
-  conversationsPat Conversation[] @relation("PatientConversations")
-  messagesSent     Message[]      @relation("MessageSender")
-  messagesReceived Message[]      @relation("MessageReceiver")
-
-  casReads CasReadState[]
-  casCreees                CasDifficile[]    @relation("CasDifficileCreator")
-  Fiche Fiche[]
-  roles UserRole[]
+// Settings pour les configurations de commission
+model Setting {
+  settingId    Int            @id @default(autoincrement())
   
-  // V2: Relations pour les hôpitaux (userType = HOPITAL)
-  medecinsAffilies   MedecinHopital[] @relation("HopitalAffiliations")
-  hopitalAffiliations MedecinHopital[] @relation("MedecinAffiliations")
-  planningsHopital   Planning[]       @relation("HopitalPlannings")
-  reservationsHopital Reservation[]   @relation("HopitalReservations")
-  publicitesAnnonceur Publicite[]      @relation("UserPublicites")
-  publicitesValidees  Publicite[]      @relation("PubliciteValidator")
-
-    @@unique([email, userType])  // Un même email peut être utilisé par différents types
-  @@unique([phone, userType])  // Un même téléphone peut être utilisé par différents types
-  @@index([email])
-  @@index([phone])
-}
-
-// V2: Table de liaison pour l'affiliation médecin-hôpital
-model MedecinHopital {
-  medecinId   Int
-  hopitalId   Int
-  createdAt   DateTime @default(now())
-
-  medecin User @relation("MedecinAffiliations", fields: [medecinId], references: [userId])
-  hopital User @relation("HopitalAffiliations", fields: [hopitalId], references: [userId])
-
-  @@id([medecinId, hopitalId])
-}
-
-// V2: Package d'abonnement par spécialité (simplifié)
-model GroupePackage {
-  packageId             Int      @id @default(autoincrement())
-  nom                   String   
-  specialityId          Int      
-  nombreConsultations   Int      
-  chatInclus            Boolean  @default(false)
-  appelInclus           Boolean  @default(false)
-  prix                  Decimal  @db.Decimal(10, 2)
-  dureeValiditeJours    Int      
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  speciality Speciality @relation(fields: [specialityId], references: [specialityId])
-  abonnements Abonnement[]
-
-  @@index([specialityId, isActive])
-}
-
-// V2: Abonnement étendu
-model Abonnement {
-  abonnementId      Int              @id @default(autoincrement())
-  medecinId         Int?             
-  patientId         Int
-  packageId         Int?             // Si non null, c'est un abonnement groupe
-  numberOfTimePlanReservation Int?   
-  status            AbonnementStatus @default(PENDING)
-  debutDate         DateTime
-  endDate           DateTime
-  amount            Decimal?         @db.Decimal(10, 2)
-  transactionId     Int?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  medecin     User?           @relation("MedecinAbonnements", fields: [medecinId], references: [userId])
-  patient     User            @relation("PatientAbonnements", fields: [patientId], references: [userId])
-  transaction Transaction?    @relation(fields: [transactionId], references: [transactionId])
-  package     GroupePackage?  @relation(fields: [packageId], references: [packageId])
-  reservations Reservation[]
-}
-
-// V2: Planning avec type et hopital
-
-
-// prisma/schema.prisma
-// prisma/schema.prisma - Modifier le modèle Planning
-
-// prisma/schema.prisma - Modifier le modèle Planning
-
-model Planning {
-  planningId Int      @id @default(autoincrement())
-  medecinId  Int
-  jour       String   // lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche
-  debutHour  String   // HH:MM:SS
-  endHour    String   // HH:MM:SS
-  type       PlanningType @default(ONLINE)
-  hopitalId  Int?     // ← Rendre optionnel avec ?
-  salle      String?
-  isActive   Boolean  @default(true)
-  isOff      Boolean  @default(false)
+  // Commission consultation en ligne
+  onlineType   CommissionType @default(PERCENTAGE)
+  onlineValue  Float          @default(10)           // 10% ou montant fixe (ex: 1000 FCFA)
   
-  // Uniquement pour les créneaux en présentiel (IN_PERSON)
-  consultationPrice Decimal? @db.Decimal(10, 2)  // Prix personnalisé pour ce créneau (NULL = utiliser prix par défaut)
-  consultationDuration Int?   // Durée personnalisée pour ce créneau (NULL = utiliser durée par défaut)
+  // Commission consultation en présentiel (hôpital)
+  onsiteType   CommissionType @default(PERCENTAGE)
+  onsiteValue  Float          @default(15)           // 15% ou montant fixe (ex: 2000 FCFA)
   
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  medecin User    @relation(fields: [medecinId], references: [userId])
-  hopital User?   @relation("HopitalPlannings", fields: [hopitalId], references: [userId])
-
-  @@unique([medecinId, jour, debutHour, type, hopitalId])
-  @@index([medecinId, jour, isActive])
-}
-// V2: Reservation avec hopital et abonnement
-model Reservation {
-  reservationId Int               @id @default(autoincrement())
-  date          String
-  hour          String
-  type          ReservationType
-  patientName   String
-  sex           Sex
-  age           Int?
-  description   String?
-  medecinId     Int
-  patientId     Int
-  location      String?
-  amount        Decimal?          @db.Decimal(10, 2)
-  transactionId Int?
-  status        ReservationStatus @default(PENDING)
-  hopitalId     Int?              
-  abonnementId  Int?              
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  medecin     User         @relation("MedecinReservations", fields: [medecinId], references: [userId])
-  patient     User         @relation("PatientReservations", fields: [patientId], references: [userId])
-  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
-  ordonance   Ordonance?   @relation("ReservationOrdonnances")
-  hopital     User?        @relation("HopitalReservations", fields: [hopitalId], references: [userId])
-  abonnement  Abonnement?  @relation(fields: [abonnementId], references: [abonnementId])
-}
-
-// V2: Publicité
-model Publicite {
-  publiciteId       Int              @id @default(autoincrement())
-  annonceurType     AdvertiserType
-  annonceurId       Int              
-  typeContenu       ContentType
-  urlContenu        String           
-  titre             String
-  description       String?
-  dateDebut         DateTime
-  dateFin           DateTime
-  statut            PubliciteStatus  @default(PENDING_VALIDATION)
-  montant           Decimal          @db.Decimal(10, 2)
-  transactionId     Int?
-  adminValidatorId  Int?          
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  transaction Transaction?              @relation(fields: [transactionId], references: [transactionId])
-  validator   User?                     @relation("PubliciteValidator", fields: [adminValidatorId], references: [userId])
-  annonceur   User?                     @relation("UserPublicites", fields: [annonceurId], references: [userId])
-}
-
-model Transaction {
-  transactionId Int               @id @default(autoincrement())
-  paymentId     String?
-  status        TransactionStatus @default(PENDING)
-  amount        Decimal           @db.Decimal(10, 2)
-  type          TransactionType
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  abonnements  Abonnement[]
-  reservations Reservation[]
-  publicites   Publicite[]
-}
-
-/* ========== MODELS EXISTANTS (inchangés) ========== */
-
-model Conversation {
-  conversationId Int      @id @default(autoincrement())
-  medecinId      Int
-  patientId      Int
-  lastMessageAt  DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  medecin  User @relation("MedecinConversations", fields: [medecinId], references: [userId])
-  patient  User @relation("PatientConversations", fields: [patientId], references: [userId])
-  messages Message[]
-
-  @@unique([medecinId, patientId])
-}
-
-model Message {
-  messageId       Int          @id @default(autoincrement())
-  kind            MessageKind  @default(TEXT)
-  conversationId  Int?
-  casId           Int?
-  senderId        Int
-  receiverId      Int?
-  content         String?
-  meta            Json?
-  ficheId         Int?
-  isRead          Boolean      @default(false)
-  isAnonymous     Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-
-  conversation   Conversation?    @relation(fields: [conversationId], references: [conversationId])
-  cas            CasDifficile?    @relation(fields: [casId], references: [casId])
-  sender         User             @relation("MessageSender",   fields: [senderId],   references: [userId])
-  receiver       User?            @relation("MessageReceiver", fields: [receiverId], references: [userId])
-  fiche          Fiche?           @relation(fields: [ficheId], references: [ficheId])
-}
-
-model CasDifficile {
-  casId       Int      @id @default(autoincrement())
-  name        String
-  description String?
-  diseaseCode String?
-  createdBy   Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  creator  User     @relation("CasDifficileCreator", fields: [createdBy], references: [userId])
-  messages Message[]
-  reads    CasReadState[]
-}
-
-model CasReadState {
-  id         Int      @id @default(autoincrement())
-  casId      Int
-  userId     Int
-  lastReadAt DateTime @default(now())
-
-  cas  CasDifficile @relation(fields: [casId], references: [casId])
-  user User         @relation(fields: [userId], references: [userId])
-
-  @@unique([casId, userId])
-}
-
-model Fiche {
-  ficheId     Int      @id @default(autoincrement())
-  title       String
-  description String?
-  createdBy   Int
-  isActive    Boolean  @default(true)
-  questions   Json
-  responses   Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  creator     User     @relation(fields: [createdBy], references: [userId])
-  requests    Message[]
-}
-
-model Notification {
-  notificationId Int      @id @default(autoincrement())
-  title          String
-  message        String
-  isRead         Boolean  @default(false)
-  userId         Int
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  user User @relation(fields: [userId], references: [userId])
-}
-
-model Speciality {
-  specialityId                Int      @id @default(autoincrement())
-  name                        String
-  consultationPrice           Decimal  @db.Decimal(10, 2)
-  consultationDuration        Int
-  planMonthAmount             Decimal  @db.Decimal(10, 2)
-  numberOfTimePlanReservation Int
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
-  users                       User[]
-  groupePackages              GroupePackage[]
-}
-
-model Feedback {
-  feedbackId Int      @id @default(autoincrement())
-  medecinId  Int
-  patientId  Int
-  note       Int
-  comment    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  medecin User @relation("MedecinFeedbacks", fields: [medecinId], references: [userId])
-  patient User @relation("PatientFeedbacks", fields: [patientId], references: [userId])
-}
-
-model Favorite {
-  favoriteId Int      @id @default(autoincrement())
-  medecinId  Int
-  patientId  Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  medecin User @relation("MedecinFavorites", fields: [medecinId], references: [userId])
-  patient User @relation("PatientFavorites", fields: [patientId], references: [userId])
-}
-
-model Video {
-  videoId     Int      @id @default(autoincrement())
-  title       String
-  path        String
-  description String?
-  categoryId  Int?
-  medecinId   Int
-  duree        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  medecin  User           @relation(fields: [medecinId], references: [userId])
-  category CategoryVideo? @relation(fields: [categoryId], references: [categoryId])
-}
-
-model CategoryVideo {
-  categoryId  Int      @id @default(autoincrement())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  coverImage  String?
-  videos      Video[]
-}
-
-model SoldeMedecin {
-  soldeMedecinId Int      @id @default(autoincrement())
-  solde          Decimal  @default(0) @db.Decimal(10, 2)
-  medecinId      Int
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  medecin User @relation(fields: [medecinId], references: [userId])
-}
-
-model Ordonance {
-  ordonanceId     Int      @id @default(autoincrement())
-  name            String?  @db.VarChar(255)
-  dureeTraitement String?  @db.VarChar(100)
-  traitement      Json?
-  comment         String?
-  medecinId       Int
-  patientId       Int
-  images          Json?
-  reservationId   Int      @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  medecin     User        @relation("MedecinOrdonnances", fields: [medecinId], references: [userId])
-  patient     User        @relation("PatientOrdonnances", fields: [patientId], references: [userId])
-  reservation Reservation @relation("ReservationOrdonnances", fields: [reservationId], references: [reservationId])
-  Suivi Suivi[]
-}
-
-model Suivi {
-  suiviId           Int       @id @default(autoincrement())
-  name              String
-  dosage            String?
-  posologie         String?
-  forme             String?
-  voie              String?
-  instructions      String?
-  startDate         DateTime
-  endDate           DateTime
-  frequency         Json
-  notificationTimes Json
-  isActive          Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  patientId         Int
-  ordonanceId       Int?
-  
-  patient      User      @relation(fields: [patientId], references: [userId])
-  ordonnance   Ordonance? @relation(fields: [ordonanceId], references: [ordonanceId])
-}
-
-model PasswordReset {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  email     String
-  otpHash   String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [userId])
-}
-
-model Category {
-  categoryId  Int      @id @default(autoincrement())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  formations  FormationContinue[]
-  Lesson      Lesson[]
-}
-
-model FormationContinue {
-  formationId Int      @id @default(autoincrement())
-  name        String
-  categoryId  Int?
-  competence  String
-  dureeHeures Int
-  comment     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  category Category? @relation(fields: [categoryId], references: [categoryId])
-  lessons  Lesson[]
-}
-
-model Lesson {
-  lessonId    Int      @id @default(autoincrement())
-  title       String
-  description String?
-  categoryId  Int?
-  fileUrl     String?
-  orderIndex  Int?
-  formationId Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  formation FormationContinue @relation(fields: [formationId], references: [formationId])
-  category  Category?         @relation(fields: [categoryId], references: [categoryId])
-}
-
-model Role {
-  roleId      Int        @id @default(autoincrement())
-  name        String     @unique
-  description String?
-  users       UserRole[]
-  permissions RolePermission[]
-}
-
-model Permission {
-  permissionId Int      @id @default(autoincrement())
-  name         String   @unique
   description  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  roles RolePermission[]
-}
+  updatedBy    Int?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-model RolePermission {
-  roleId       Int
-  permissionId Int
-  assignedAt   DateTime @default(now())
-
-  role       Role       @relation(fields: [roleId], references: [roleId])
-  permission Permission @relation(fields: [permissionId], references: [permissionId])
-
-  @@id([roleId, permissionId])
-}
-
-model UserRole {
-  userId     Int
-  roleId     Int
-  assignedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [userId])
-  role Role @relation(fields: [roleId], references: [roleId])
-
-  @@id([userId, roleId])
-}
-
-model Medicament {
-  medicamentId Int     @id @default(autoincrement())
-  name         String
-  nameCommercial String?
-  nameLabo    String?
-  dosage       String?
-  forme        String?
-  voie         String?
-  posologie    String?
-  comment      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model ProtocoleOrdonance {
-  protocoleId Int      @id @default(autoincrement())
-  name        String   @unique @db.VarChar(255)
-  description String?  @db.VarChar(500)
-  traitement  Json
-  images      Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  @@map("settings")
 }

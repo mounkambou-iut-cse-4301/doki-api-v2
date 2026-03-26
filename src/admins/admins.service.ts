@@ -213,89 +213,122 @@ export class AdminsService {
   }
 
   /** 6) Lister transactions avec filtres + pagination */
- async listTransactions(query: QueryTransactionsDto) {
-  try {
-    const page  = query.page  != null ? Number(query.page)  : 1;
-    const limit = query.limit != null ? Number(query.limit) : 10;
-    if (page < 1 || limit < 1) {
+  async listTransactions(query: QueryTransactionsDto) {
+    try {
+      const page  = query.page  != null ? Number(query.page)  : 1;
+      const limit = query.limit != null ? Number(query.limit) : 10;
+      if (page < 1 || limit < 1) {
+        throw new BadRequestException({
+          message: 'Page et limit doivent être >= 1.',
+          messageE: 'Page and limit must be >= 1.',
+        });
+      }
+      const skip = (page - 1) * limit;
+
+      const where: any = {};
+      if (query.status) where.status = query.status;
+      if (query.type)   where.type   = query.type;
+      if (query.year && query.month) where.createdAt = monthRange(query.year, query.month);
+      if (query.q && query.q.trim()) {
+        const q = query.q.trim();
+        where.AND ??= [];
+        where.AND.push({
+          OR: [
+            { paymentId: { contains: q } },
+            { reservations: { some: {
+                OR: [
+                  { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+                  { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+                ],
+            } } },
+            { abonnements: { some: {
+                OR: [
+                  { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+                ],
+            } } },
+          ],
+        });
+      }
+
+      const [items, total] = await this.prisma.$transaction([
+        this.prisma.transaction.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            reservations: {
+              select: { 
+                reservationId: true, 
+                medecinId: true, 
+                patientId: true, 
+                date: true, 
+                hour: true,
+                patient: { select: { firstName: true, lastName: true } },
+                medecin: { select: { firstName: true, lastName: true } }
+              },
+            },
+            abonnements: {
+              select: { 
+                abonnementId: true, 
+                patientId: true, 
+                debutDate: true, 
+                endDate: true,
+                patient: { select: { firstName: true, lastName: true } },
+                package: {
+                  select: {
+                    nom: true,
+                    speciality: {
+                      select: { name: true }
+                    }
+                  }
+                }
+              },
+            },
+          },
+        }),
+        this.prisma.transaction.count({ where }),
+      ]);
+
+      return {
+        message: 'Transactions récupérées.',
+        messageE: 'Transactions fetched.',
+        items,
+        meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException({
-        message: 'Page et limit doivent être >= 1.',
-        messageE: 'Page and limit must be >= 1.',
+        message: `Erreur liste transactions : ${error.message}`,
+        messageE: `Error listing transactions: ${error.message}`,
       });
     }
-    const skip = (page - 1) * limit;
-
-    const where: any = {};
-    if (query.status) where.status = query.status;
-    if (query.type)   where.type   = query.type;
-    if (query.year && query.month) where.createdAt = monthRange(query.year, query.month);
-    if (query.q && query.q.trim()) {
-  const q = query.q.trim();
-  where.AND ??= [];
-  where.AND.push({
-    OR: [
-      { paymentId: { contains: q } },
-      { reservations: { some: {
-          OR: [
-            { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
-            { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
-          ],
-      } } },
-      { abonnements: { some: {
-          OR: [
-            { medecin: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
-            { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
-          ],
-      } } },
-    ],
-  });
-}
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.transaction.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          // <-- relations AU PLURIEL
-          reservations: {
-            select: { reservationId: true, medecinId: true, patientId: true, date: true, hour: true,patient:{select:{firstName:true,lastName:true}},medecin:{select:{firstName:true,lastName:true}} },
-          },
-          abonnements: {
-            select: { abonnementId: true, medecinId: true, patientId: true, debutDate: true, endDate: true,patient:{select:{firstName:true,lastName:true}},medecin:{select:{firstName:true,lastName:true}} },
-          },
-        },
-      }),
-      this.prisma.transaction.count({ where }),
-    ]);
-
-    return {
-      message: 'Transactions récupérées.',
-      messageE: 'Transactions fetched.',
-      items,
-      meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
-    };
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    throw new BadRequestException({
-      message: `Erreur liste transactions : ${error.message}`,
-      messageE: `Error listing transactions: ${error.message}`,
-    });
   }
-}
-
 
   /** 7) Détail d'une transaction + users concernés + détails liés */
- async getTransactionDetail(id: number) {
+/** 7) Détail d'une transaction + users concernés + détails liés */
+async getTransactionDetail(id: number) {
   try {
     const tx = await this.prisma.transaction.findUnique({
       where: { transactionId: id },
       include: {
-        reservations: { include: { medecin: true, patient: true } }, // <-- lower camelCase
-        abonnements:  true,
+        reservations: { 
+          include: { 
+            medecin: true, 
+            patient: true 
+          } 
+        },
+        abonnements: {
+          include: {
+            patient: true,
+            package: {
+              include: { speciality: true }
+            }
+          }
+        },
       },
     });
+    
     if (!tx) {
       throw new NotFoundException({
         message: `Transaction ${id} introuvable.`,
@@ -303,26 +336,50 @@ export class AdminsService {
       });
     }
 
-    // Selon ton schéma actuel, ce sont des listes
-    const res = (tx as any).reservations?.[0] ?? null;
-    const abo = (tx as any).abonnements?.[0]  ?? null;
+    // Récupérer les données
+    const reservation = tx.reservations?.[0] ?? null;
+    const abonnement = tx.abonnements?.[0] ?? null;
 
     // Médecin / Patient
-    let med = res?.medecin ?? null;
-    let pat = res?.patient ?? null;
+    let medecin = reservation?.medecin ?? null;
+    let patient = reservation?.patient ?? null;
 
-    if (!med && abo) {
-      // si transaction liée à un abonnement: fetch users
-      [med, pat] = await Promise.all([
-        this.prisma.user.findUnique({ where: { userId: abo.medecinId } }),
-        this.prisma.user.findUnique({ where: { userId: abo.patientId } }),
-      ]);
+    if (!medecin && abonnement) {
+      patient = abonnement.patient;
+      // Pour les abonnements, il n'y a pas de médecin spécifique
+      // On récupère les médecins de la spécialité du package
+      if (abonnement.package?.specialityId) {
+        const medecins = await this.prisma.user.findMany({
+          where: {
+            userType: UserType.MEDECIN,
+            specialityId: abonnement.package.specialityId,
+          },
+          take: 5,
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            profile: true,
+            userType: true,
+            specialityId: true,
+            isVerified: true,
+            isBlock: true,
+          }
+        });
+        // Assigner le premier médecin trouvé comme représentant de la spécialité
+        if (medecins.length > 0) {
+          medecin = medecins[0] as any; // Cast pour éviter l'erreur de typage
+        }
+      }
     }
 
     // Note moyenne patient↔médecin si dispo
     let ratingAvg: number | null = null;
-    const medecinId = res?.medecinId ?? abo?.medecinId ?? null;
-    const patientId = res?.patientId ?? abo?.patientId ?? null;
+    const medecinId = reservation?.medecinId ?? null;
+    const patientId = reservation?.patientId ?? abonnement?.patientId ?? null;
+    
     if (medecinId && patientId) {
       const agg = await this.prisma.feedback.aggregate({
         _avg: { note: true },
@@ -335,11 +392,43 @@ export class AdminsService {
       message: 'Transaction récupérée.',
       messageE: 'Transaction fetched.',
       transaction: tx,
-      medecin: med,
-      patient: pat,
+      medecin: medecin ? {
+        userId: medecin.userId,
+        firstName: medecin.firstName,
+        lastName: medecin.lastName,
+        email: medecin.email,
+        phone: medecin.phone,
+        profile: medecin.profile,
+        userType: medecin.userType,
+        specialityId: medecin.specialityId,
+        isVerified: medecin.isVerified,
+        isBlock: medecin.isBlock,
+      } : null,
+      patient: patient ? {
+        userId: patient.userId,
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        email: patient.email,
+        phone: patient.phone,
+        profile: patient.profile,
+        userType: patient.userType,
+        isVerified: patient.isVerified,
+        isBlock: patient.isBlock,
+      } : null,
       related: {
-        reservation: res ? { reservationId: res.reservationId } : null,
-        abonnement:  abo ? { abonnementId: abo.abonnementId }   : null,
+        reservation: reservation ? { 
+          reservationId: reservation.reservationId,
+          date: reservation.date,
+          hour: reservation.hour,
+          status: reservation.status 
+        } : null,
+        abonnement: abonnement ? { 
+          abonnementId: abonnement.abonnementId, 
+          package: abonnement.package,
+          debutDate: abonnement.debutDate,
+          endDate: abonnement.endDate,
+          status: abonnement.status
+        } : null,
       },
       ratingAvg,
     };
@@ -351,5 +440,4 @@ export class AdminsService {
     });
   }
 }
-
 }

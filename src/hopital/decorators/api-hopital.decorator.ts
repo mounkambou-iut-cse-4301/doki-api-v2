@@ -168,19 +168,57 @@ export function ApiRemoveMedecinsFromHopital() {
 }
 
 // ==================== GET HOPITAL MEDECINS ====================
+// ==================== GET HOPITAL MEDECINS ====================
 export function ApiGetHopitalMedecins() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({ 
       summary: 'Lister les médecins d\'un hôpital',
-      description: 'Retourne la liste de tous les médecins affiliés à l\'hôpital'
+      description: 'Retourne la liste paginée des médecins affiliés à un hôpital avec possibilité de filtrer par nom'
     }),
     ApiParam({ name: 'id', description: 'ID de l\'hôpital', type: Number, example: 1 }),
-    ApiQuery({ name: 'page', required: false, type: Number, default: 1 }),
-    ApiQuery({ name: 'limit', required: false, type: Number, default: 20 }),
+    ApiQuery({ name: 'page', required: false, type: Number, default: 1, description: 'Numéro de page' }),
+    ApiQuery({ name: 'limit', required: false, type: Number, default: 20, description: 'Nombre d\'éléments par page' }),
+    ApiQuery({ name: 'search', required: false, type: String, description: 'Recherche par nom (prénom ou nom) du médecin' }),
     ApiResponse({
       status: 200,
-      description: 'Liste des médecins récupérée avec succès'
+      description: 'Liste des médecins récupérée avec succès',
+      schema: {
+        example: {
+          message: 'Liste des médecins récupérée avec succès',
+          messageE: 'Doctors list retrieved successfully',
+          data: [
+            {
+              medecinId: 10,
+              hopitalId: 1,
+              createdAt: '2026-03-25T10:00:00.000Z',
+              medecin: {
+                userId: 10,
+                firstName: 'Jean',
+                lastName: 'Dupont',
+                email: 'jean.dupont@example.com',
+                phone: '+237612345678',
+                profile: 'https://...',
+                speciality: {
+                  specialityId: 1,
+                  name: 'Cardiologie',
+                  consultationPrice: 5000
+                }
+              }
+            }
+          ],
+          meta: {
+            total: 5,
+            page: 1,
+            limit: 20,
+            pageCount: 1
+          }
+        }
+      }
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Hôpital non trouvé'
     })
   );
 }

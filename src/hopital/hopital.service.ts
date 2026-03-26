@@ -1194,49 +1194,76 @@ export class HopitalService {
   }
 
   // 1.7 - Lister les médecins d'un hôpital
-  async getMedecins(hopitalId: number, page: number = 1, limit: number = 20) {
-    const hopital = await this.prisma.user.findUnique({
-      where: { userId: hopitalId, userType: UserType.HOPITAL },
+  // 1.7 - Lister les médecins d'un hôpital avec filtre par nom
+async getMedecins(
+  hopitalId: number, 
+  page: number = 1, 
+  limit: number = 20,
+  search?: string  // Ajout du paramètre search
+) {
+  const hopital = await this.prisma.user.findUnique({
+    where: { userId: hopitalId, userType: UserType.HOPITAL },
+  });
+
+  if (!hopital) {
+    throw new NotFoundException({
+      message: `Hôpital d'ID ${hopitalId} introuvable.`,
+      messageE: `Hospital with ID ${hopitalId} not found.`,
     });
+  }
 
-    if (!hopital) {
-      throw new NotFoundException({
-        message: `Hôpital d'ID ${hopitalId} introuvable.`,
-        messageE: `Hospital with ID ${hopitalId} not found.`,
-      });
-    }
+  const skip = (page - 1) * limit;
 
-    const skip = (page - 1) * limit;
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.medecinHopital.findMany({
-        where: { hopitalId },
-        skip,
-        take: limit,
-        include: {
-          medecin: {
-            include: {
-              speciality: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.medecinHopital.count({ where: { hopitalId } }),
-    ]);
-
-    return {
-      message: 'Liste des médecins récupérée avec succès',
-      messageE: 'Doctors list retrieved successfully',
-      data: items,
-      meta: {
-        total,
-        page,
-        limit,
-        pageCount: Math.ceil(total / limit),
-      },
+  // Construction du where pour les médecins
+  const where: any = { hopitalId };
+  
+  // Ajouter le filtre par nom si search est fourni
+  if (search && search.trim()) {
+    const searchTerm = search.trim();
+    where.medecin = {
+      OR: [
+        { firstName: { contains: searchTerm } },
+        { lastName: { contains: searchTerm } },
+        // Optionnel: recherche sur le nom complet
+        { 
+          AND: [
+            { firstName: { contains: searchTerm.split(' ')[0] || searchTerm } },
+            { lastName: { contains: searchTerm.split(' ')[1] || searchTerm } }
+          ]
+        }
+      ]
     };
   }
+
+  const [items, total] = await this.prisma.$transaction([
+    this.prisma.medecinHopital.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        medecin: {
+          include: {
+            speciality: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    this.prisma.medecinHopital.count({ where }),
+  ]);
+
+  return {
+    message: 'Liste des médecins récupérée avec succès',
+    messageE: 'Doctors list retrieved successfully',
+    data: items,
+    meta: {
+      total,
+      page,
+      limit,
+      pageCount: Math.ceil(total / limit),
+    },
+  };
+}
 
   // 1.8 - Lister les réservations d'un hôpital
   async getReservations(hopitalId: number, query: any) {

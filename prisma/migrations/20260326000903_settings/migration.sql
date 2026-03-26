@@ -1,0 +1,14 @@
+-- CreateTable
+CREATE TABLE `settings` (
+    `settingId` INTEGER NOT NULL AUTO_INCREMENT,
+    `onlineType` ENUM('PERCENTAGE', 'FIXED') NOT NULL DEFAULT 'PERCENTAGE',
+    `onlineValue` DOUBLE NOT NULL DEFAULT 10,
+    `onsiteType` ENUM('PERCENTAGE', 'FIXED') NOT NULL DEFAULT 'PERCENTAGE',
+    `onsiteValue` DOUBLE NOT NULL DEFAULT 15,
+    `description` VARCHAR(191) NULL,
+    `updatedBy` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`settingId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

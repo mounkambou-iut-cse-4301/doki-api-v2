@@ -101,6 +101,11 @@ const MODULE_LABEL = {
 
   AUTH: { one: "la configuration d’authentification", many: "la configuration d’authentification" },
   SECURITY: { one: 'la configuration de sécurité', many: 'la configuration de sécurité' },
+
+  // Hopital
+  HOSPITAL: { one: 'un hôpital', many: 'les hôpitaux' },
+  PACKAGE: { one: 'un package', many: 'les packages' },
+  SETTINGS: { one: 'la configuration de l’application', many: 'la configuration de l’application' },
 };
 
 /**
@@ -144,6 +149,11 @@ const MODULE_ACTIONS = {
 
   NOTIFICATIONS: ['LIST', 'GET', 'CREATE', 'DELETE', 'MARK_READ'],
   PASSWORD_RESET: ['CREATE', 'CONFIRM'],
+
+  // Hopital
+  HOSPITAL: ['LIST', 'GET', 'SEARCH', 'CREATE', 'UPDATE', 'DELETE'],
+  PACKAGE: ['LIST', 'GET', 'SEARCH', 'CREATE', 'UPDATE', 'DELETE'],
+  SETTINGS: ['LIST', 'GET', 'UPDATE'],
 
   AUTH: ['MANAGE'],
   SECURITY: ['MANAGE'],

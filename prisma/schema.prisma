@@ -580,6 +580,7 @@ enum ReservationType {
 
 enum ReservationStatus {
   PENDING
+  STARTED      
   COMPLETED
   CANCELLED
 }

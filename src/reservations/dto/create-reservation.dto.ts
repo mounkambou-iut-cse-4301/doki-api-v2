@@ -8,25 +8,27 @@ import {
   IsOptional,
   IsDateString,
   Min,
-  IsNumber,
 } from 'class-validator';
 import { ReservationType, Sex } from 'generated/prisma';
 
 export class CreateReservationDto {
   @ApiProperty({ description: 'Date (YYYY-MM-DD)' })
-  @IsNotEmpty() @IsString()
+  @IsNotEmpty()
+  @IsString()
   date: string;
 
-  @ApiProperty({ description: 'Heure (HH:MM:SS)' })
-  @IsNotEmpty() @IsString()
+  @ApiProperty({ description: 'Heure (HH:MM)' })
+  @IsNotEmpty()
+  @IsString()
   hour: string;
 
-  @ApiProperty({ enum: ReservationType })
+  @ApiProperty({ enum: ReservationType, description: 'CALL = en ligne, IN_PERSON = en présentiel' })
   @IsEnum(ReservationType)
   type: ReservationType;
 
-  @ApiProperty({ description: 'Prénom du patient' })
-  @IsNotEmpty() @IsString()
+  @ApiProperty({ description: 'Nom du patient' })
+  @IsNotEmpty()
+  @IsString()
   patientName: string;
 
   @ApiProperty({ enum: Sex })
@@ -34,26 +36,38 @@ export class CreateReservationDto {
   sex: Sex;
 
   @ApiPropertyOptional({ description: 'Âge', minimum: 0 })
-  @IsOptional() @IsInt() @Min(0)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
   age?: number;
 
   @ApiPropertyOptional({ description: 'Description / motif' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @ApiProperty({ description: 'ID du médecin' })
-  @IsNotEmpty() @IsInt()
+  @IsNotEmpty()
+  @IsInt()
   medecinId: number;
 
   @ApiProperty({ description: 'ID du patient' })
-  @IsNotEmpty() @IsInt()
+  @IsNotEmpty()
+  @IsInt()
   patientId: number;
 
-  @ApiPropertyOptional({ description: 'Lieu (optionnel)' })
-  @IsOptional() @IsString()
+  @ApiPropertyOptional({ description: 'Localisation / adresse' })
+  @IsOptional()
+  @IsString()
   location?: string;
 
+  @ApiPropertyOptional({ description: 'ID de l\'hôpital (requis si type = IN_PERSON)' })
+  @IsOptional()
+  @IsInt()
+  hopitalId?: number;
+
   @ApiProperty({ description: 'ID de la spécialité' })
-  @IsNotEmpty() @IsInt()
+  @IsNotEmpty()
+  @IsInt()
   specialityId: number;
 }

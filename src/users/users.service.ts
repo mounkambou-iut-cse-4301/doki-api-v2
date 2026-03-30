@@ -859,6 +859,7 @@ export class UsersService {
           ...dto,
           password: hashedPassword,
           userType: UserType.PATIENT,
+          isVerified:true
         },
       });
     } catch (error) {

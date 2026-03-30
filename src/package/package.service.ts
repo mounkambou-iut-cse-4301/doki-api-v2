@@ -65,62 +65,120 @@ export class PackageService {
   }
 
   // GET ALL
-  async findAll(query: PackageQueryDto) {
-    const page = query.page || 1;
-    const limit = query.limit || 20;
-    const skip = (page - 1) * limit;
+  // async findAll(query: PackageQueryDto) {
+  //   const page = query.page || 1;
+  //   const limit = query.limit || 20;
+  //   const skip = (page - 1) * limit;
 
-    const where: any = {};
+  //   const where: any = {};
 
-    if (query.search) {
-      where.nom = { contains: query.search };
-    }
+  //   if (query.search) {
+  //     where.nom = { contains: query.search };
+  //   }
 
-    if (query.specialityId) {
-      where.specialityId = query.specialityId;
-    }
+  //   if (query.specialityId) {
+  //     where.specialityId = query.specialityId;
+  //   }
 
-    if (query.isActive !== undefined) {
-      where.isActive = query.isActive;
-    }
+  //   if (query.isActive !== undefined) {
+  //     where.isActive = query.isActive;
+  //   }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.groupePackage.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          speciality: {
-            select: {
-              specialityId: true,
-              name: true,
-              consultationPrice: true,
-            },
-          },
-          abonnements: {
-            select: {
-              abonnementId: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.groupePackage.count({ where }),
-    ]);
+  //   const [items, total] = await this.prisma.$transaction([
+  //     this.prisma.groupePackage.findMany({
+  //       where,
+  //       skip,
+  //       take: limit,
+  //       include: {
+  //         speciality: {
+  //           select: {
+  //             specialityId: true,
+  //             name: true,
+  //             consultationPrice: true,
+  //           },
+  //         },
+  //         abonnements: {
+  //           select: {
+  //             abonnementId: true,
+  //           },
+  //         },
+  //       },
+  //       orderBy: { createdAt: 'desc' },
+  //     }),
+  //     this.prisma.groupePackage.count({ where }),
+  //   ]);
 
-    return {
-      message: 'Liste des packages récupérée avec succès',
-      messageE: 'Packages list retrieved successfully',
-      data: items,
-      meta: {
-        total,
-        page,
-        limit,
-        pageCount: Math.ceil(total / limit),
-      },
-    };
+  //   return {
+  //     message: 'Liste des packages récupérée avec succès',
+  //     messageE: 'Packages list retrieved successfully',
+  //     data: items,
+  //     meta: {
+  //       total,
+  //       page,
+  //       limit,
+  //       pageCount: Math.ceil(total / limit),
+  //     },
+  //   };
+  // }
+// GET ALL
+async findAll(query: PackageQueryDto) {
+  const page = query.page || 1;
+  const limit = query.limit || 20;
+  const skip = (page - 1) * limit;
+
+  const where: any = {};
+
+  if (query.search) {
+    where.nom = { contains: query.search };
   }
 
+  if (query.specialityId) {
+    where.specialityId = query.specialityId;
+  }
+
+  if (query.isActive !== undefined) {
+    where.isActive = query.isActive;
+  }
+
+  const [items, total] = await this.prisma.$transaction([
+    this.prisma.groupePackage.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        speciality: {
+          select: {
+            specialityId: true,
+            name: true,
+            consultationPrice: true,
+          },
+        },
+        abonnements: {
+          select: {
+            abonnementId: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    this.prisma.groupePackage.count({ where }),
+  ]);
+
+  // Filter out items where speciality is null (orphaned records)
+  const validItems = items.filter(item => item.speciality !== null);
+
+  return {
+    message: 'Liste des packages récupérée avec succès',
+    messageE: 'Packages list retrieved successfully',
+    data: validItems,
+    meta: {
+      total: validItems.length, // Update total to reflect only valid items
+      page,
+      limit,
+      pageCount: Math.ceil(validItems.length / limit),
+    },
+  };
+}
   // GET ONE
   async findOne(id: number) {
     const packageData = await this.prisma.groupePackage.findUnique({

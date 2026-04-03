@@ -54,8 +54,8 @@ model User {
   PasswordReset       PasswordReset[]
   planningsHopital    Planning[]       @relation("HopitalPlannings")
   plannings           Planning[]
-  publicitesValidees  Publicite[]      @relation("PubliciteValidator")
-  publicitesAnnonceur Publicite[]      @relation("UserPublicites")
+  publicitesAnnonceur   Publicite[] @relation("PubliciteAnnonceurPlateforme")
+  publicitesTeleversees Publicite[] @relation("PubliciteTeleverseePar")
   reservationsHopital Reservation[]    @relation("HopitalReservations")
   reservationsM       Reservation[]    @relation("MedecinReservations")
   reservationsP       Reservation[]    @relation("PatientReservations")
@@ -72,6 +72,98 @@ model User {
   @@index([email])
   @@index([phone])
   @@index([specialityId], map: "User_specialityId_fkey")
+}
+
+enum CibleAudiencePublicite {
+  MEDECIN
+  PATIENT
+  LES_DEUX
+}
+
+enum TypeMediaPublicite {
+  IMAGE
+  VIDEO
+}
+
+enum StatutPublicite {
+  EN_ATTENTE_PAIEMENT
+  ACTIVE
+  TERMINEE
+  ANNULEE
+}
+
+model PackagePublicite {
+  packagePubliciteId        Int                    @id @default(autoincrement())
+  nom                       String
+  description               String?                @db.Text
+  dureeJours                Int
+  montant                   Decimal                @db.Decimal(10, 2)
+  cibleAudience             CibleAudiencePublicite
+  nombreMaxImages           Int                    @default(0)
+  nombreMaxVideos           Int                    @default(0)
+  dureeMaxVideoSecondes     Int                    @default(30)
+  actif                     Boolean                @default(true)
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+
+  publicites                Publicite[]
+
+  @@index([actif])
+}
+
+model Publicite {
+  publiciteId               Int                    @id @default(autoincrement())
+  titre                     String
+  description               String?                @db.Text
+
+  packagePubliciteId        Int
+
+  annonceurUtilisateurId    Int?
+  televerseParId            Int
+
+  nomAnnonceurExterne       String?
+  telephoneAnnonceurExterne String?
+  emailAnnonceurExterne     String?
+
+  cibleAudience             CibleAudiencePublicite
+  statut                    StatutPublicite        @default(EN_ATTENTE_PAIEMENT)
+
+  dateDebut                 DateTime
+  dateFin                   DateTime
+  montant                   Decimal                @db.Decimal(10, 2)
+
+  transactionId             Int?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+
+  packagePublicite          PackagePublicite       @relation(fields: [packagePubliciteId], references: [packagePubliciteId])
+  annonceurUtilisateur      User?                  @relation("PubliciteAnnonceurPlateforme", fields: [annonceurUtilisateurId], references: [userId])
+  televersePar              User                   @relation("PubliciteTeleverseePar", fields: [televerseParId], references: [userId])
+  medias                    MediaPublicite[]
+  transaction               Transaction?           @relation(fields: [transactionId], references: [transactionId])
+
+  @@index([packagePubliciteId])
+  @@index([annonceurUtilisateurId])
+  @@index([televerseParId])
+  @@index([transactionId])
+  @@index([statut])
+  @@index([dateDebut])
+  @@index([dateFin])
+}
+
+model MediaPublicite {
+  mediaPubliciteId          Int                 @id @default(autoincrement())
+  publiciteId               Int
+  typeMedia                 TypeMediaPublicite
+  urlFichier                String
+  dureeSecondes             Int?
+  ordreAffichage            Int                 @default(0)
+  createdAt                 DateTime            @default(now())
+
+  publicite                 Publicite           @relation(fields: [publiciteId], references: [publiciteId], onDelete: Cascade)
+
+  @@index([publiciteId])
+  @@index([typeMedia])
 }
 
 model MedecinHopital {
@@ -206,30 +298,6 @@ model Reservation {
   @@index([transactionId], map: "Reservation_transactionId_fkey")
 }
 
-model Publicite {
-  publiciteId      Int             @id @default(autoincrement())
-  annonceurType    AdvertiserType
-  annonceurId      Int
-  typeContenu      ContentType
-  urlContenu       String
-  titre            String
-  description      String?
-  dateDebut        DateTime
-  dateFin          DateTime
-  statut           PubliciteStatus @default(PENDING_VALIDATION)
-  montant          Decimal         @db.Decimal(10, 2)
-  transactionId    Int?
-  adminValidatorId Int?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  validator        User?           @relation("PubliciteValidator", fields: [adminValidatorId], references: [userId])
-  annonceur        User            @relation("UserPublicites", fields: [annonceurId], references: [userId])
-  transaction      Transaction?    @relation(fields: [transactionId], references: [transactionId])
-
-  @@index([adminValidatorId], map: "Publicite_adminValidatorId_fkey")
-  @@index([annonceurId], map: "Publicite_annonceurId_fkey")
-  @@index([transactionId], map: "Publicite_transactionId_fkey")
-}
 
 model Transaction {
   transactionId Int               @id @default(autoincrement())

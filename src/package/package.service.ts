@@ -140,42 +140,42 @@ async findAll(query: PackageQueryDto) {
     where.isActive = query.isActive;
   }
 
-  const [items, total] = await this.prisma.$transaction([
-    this.prisma.groupePackage.findMany({
-      where,
-      skip,
-      take: limit,
-      include: {
-        speciality: {
-          select: {
-            specialityId: true,
-            name: true,
-            consultationPrice: true,
-          },
-        },
-        abonnements: {
-          select: {
-            abonnementId: true,
-          },
+  // Récupérer tous les items sans pagination
+  const allItems = await this.prisma.groupePackage.findMany({
+    where,
+    include: {
+      speciality: {
+        select: {
+          specialityId: true,
+          name: true,
+          consultationPrice: true,
         },
       },
-      orderBy: { createdAt: 'desc' },
-    }),
-    this.prisma.groupePackage.count({ where }),
-  ]);
+      abonnements: {
+        select: {
+          abonnementId: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
-  // Filter out items where speciality is null (orphaned records)
-  const validItems = items.filter(item => item.speciality !== null);
+  // Filtrer les items valides
+  const validItems = allItems.filter(item => item.speciality !== null);
+  const total = validItems.length;
+  
+  // Appliquer la pagination manuellement
+  const paginatedItems = validItems.slice(skip, skip + limit);
 
   return {
     message: 'Liste des packages récupérée avec succès',
     messageE: 'Packages list retrieved successfully',
-    data: validItems,
+    data: paginatedItems,
     meta: {
-      total: validItems.length, // Update total to reflect only valid items
+      total: total,
       page,
       limit,
-      pageCount: Math.ceil(validItems.length / limit),
+      pageCount: Math.ceil(total / limit),
     },
   };
 }

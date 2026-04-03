@@ -97,12 +97,12 @@ export class AbonnementsService {
       select: { userId: true, firstName: true, lastName: true, expotoken: true },
     });
 
-    if (medecins.length === 0) {
-      throw new NotFoundException({
-        message: 'Aucun médecin disponible pour cette spécialité.',
-        messageE: 'No doctor available for this speciality.',
-      });
-    }
+    // if (medecins.length === 0) {
+    //   throw new NotFoundException({
+    //     message: 'Aucun médecin disponible pour cette spécialité.',
+    //     messageE: 'No doctor available for this speciality.',
+    //   });
+    // }
 
     // Vérifier si le patient a déjà un abonnement actif pour cette spécialité
     const existingActive = await this.prisma.abonnement.findFirst({

@@ -64,6 +64,8 @@ model User {
   speciality          Speciality?      @relation(fields: [specialityId], references: [specialityId])
   roles               UserRole[]
   videos              Video[]
+  candidatures        Candidature[]    @relation("MedecinCandidatures")
+  candidaturesHopital Candidature[]    @relation("HopitalCandidatures")
 
   @@unique([email, userType])
   @@unique([phone, userType])
@@ -81,6 +83,31 @@ model MedecinHopital {
 
   @@id([medecinId, hopitalId])
   @@index([hopitalId], map: "MedecinHopital_hopitalId_fkey")
+}
+
+model Candidature {
+  candidatureId Int               @id @default(autoincrement())
+  description   String            @db.Text
+  file          String
+  status        CandidatureStatus @default(PENDING)
+  medecinId     Int
+  hopitalId     Int
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  medecin User @relation("MedecinCandidatures", fields: [medecinId], references: [userId])
+  hopital User @relation("HopitalCandidatures", fields: [hopitalId], references: [userId])
+
+  @@index([medecinId], map: "Candidature_medecinId_fkey")
+  @@index([hopitalId], map: "Candidature_hopitalId_fkey")
+  @@index([status], map: "Candidature_status_idx")
+  @@index([createdAt], map: "Candidature_createdAt_idx")
+}
+
+enum CandidatureStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
 }
 
 model GroupePackage {

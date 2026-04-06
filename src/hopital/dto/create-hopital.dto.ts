@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { Sex } from 'generated/prisma';
 
 export class CreateHopitalDto {
@@ -12,10 +18,6 @@ export class CreateHopitalDto {
   @IsOptional()
   @IsString()
   lastName: string;
-
-  @ApiProperty({ enum: Sex, example: Sex.OTHER })
-  @IsNotEmpty()
-  sex: Sex;
 
   @ApiProperty({ example: 'contact@hopital-central.cm' })
   @IsEmail()
@@ -42,8 +44,19 @@ export class CreateHopitalDto {
   @IsString()
   address: string;
 
-  @ApiPropertyOptional({ example: 'https://res.cloudinary.com/.../logo.png' })
+  @ApiPropertyOptional({
+    example: 'https://res.cloudinary.com/.../logo.png',
+    description: 'Photo/logo de profil en base64 ou URL https',
+  })
   @IsOptional()
   @IsString()
   profile: string;
+
+  @ApiPropertyOptional({
+    example: 'https://res.cloudinary.com/.../document.png',
+    description: 'Document scanné de l’hôpital en base64 ou URL https',
+  })
+  @IsOptional()
+  @IsString()
+  document?: string;
 }

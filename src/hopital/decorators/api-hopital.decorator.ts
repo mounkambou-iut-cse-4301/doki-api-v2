@@ -14,9 +14,10 @@ import { AddMedecinsDto, RemoveMedecinsDto } from '../dto/add-medecin.dto';
 // ==================== CREATE HOPITAL ====================
 export function ApiCreateHopital() {
   return applyDecorators(
-    ApiOperation({ 
+    ApiOperation({
       summary: 'Créer un compte hôpital',
-      description: 'Inscription d\'un nouvel hôpital sur la plateforme (profil accepte base64 ou URL)'
+      description:
+        "Inscription d'un nouvel hôpital sur la plateforme (profile et document acceptent base64 ou URL)",
     }),
     ApiBody({ type: CreateHopitalDto }),
     ApiResponse({
@@ -36,20 +37,21 @@ export function ApiCreateHopital() {
             city: 'Yaoundé',
             address: 'Boulevard du 20 Mai',
             profile: 'https://res.cloudinary.com/.../logo.png',
+            document: 'https://res.cloudinary.com/.../document.png',
             isVerified: false,
-            createdAt: '2024-03-21T10:00:00.000Z'
-          }
-        }
-      }
+            createdAt: '2024-03-21T10:00:00.000Z',
+          },
+        },
+      },
     }),
     ApiResponse({
       status: 400,
-      description: 'Données invalides'
+      description: 'Données invalides',
     }),
     ApiResponse({
       status: 409,
-      description: 'Email ou téléphone déjà utilisé'
-    })
+      description: 'Email ou téléphone déjà utilisé',
+    }),
   );
 }
 

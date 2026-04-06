@@ -7,220 +7,570 @@ import {
   ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
-import { CreateParametreRetraitDto } from '../dto/create-parametre-retrait.dto';
-import { UpdateParametreRetraitDto } from '../dto/update-parametre-retrait.dto';
-import { VerifyParametreRetraitOtpDto } from '../dto/verify-parametre-retrait-otp.dto';
-import { DemanderRetraitDto } from '../dto/demander-retrait.dto';
-import { VerifyRetraitOtpDto } from '../dto/verify-retrait-otp.dto';
-import { CompleteRetraitDto } from '../dto/complete-retrait.dto';
-import { CancelRetraitDto } from '../dto/cancel-retrait.dto';
+
+// ==================== 1. CREATE PARAMETRE RETRAIT ====================
 
 export function ApiCreateParametreRetrait() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 1/9 - Paramétrer le numéro de retrait (ACTEUR: MEDECIN ou HOPITAL)',
+      summary: 'Créer les paramètres de retrait',
       description:
-        "Le médecin ou l’hôpital enregistre son numéro de retrait. " +
-        "Le système génère ensuite un OTP à 6 chiffres et l’envoie par email. " +
-        "Le numéro reste inutilisable tant que l’OTP n’est pas validé.",
+        "Permet d’enregistrer le numéro de retrait d’un utilisateur et d’initialiser la vérification OTP.",
     }),
-    ApiBody({ type: CreateParametreRetraitDto }),
+    ApiBody({
+      schema: {
+        example: {
+          userId: 12,
+          numeroRetrait: '699001122',
+        },
+      },
+    }),
     ApiResponse({
       status: 201,
-      description: 'OTP envoyé pour validation du numéro de retrait',
+      description: 'Paramètre de retrait créé avec succès',
+      schema: {
+        example: {
+          message: 'Paramètre de retrait créé avec succès',
+          messageE: 'Withdrawal parameter created successfully',
+          data: {
+            parametreRetraitId: 1,
+            userId: 12,
+            numeroRetrait: '699001122',
+            statut: 'OTP_EN_ATTENTE',
+            createdAt: '2026-04-06T12:00:00.000Z',
+            updatedAt: '2026-04-06T12:00:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'Données invalides',
+    }),
+    ApiResponse({
+      status: 409,
+      description: 'Numéro de retrait déjà utilisé',
     }),
   );
 }
+
+// ==================== 2. VERIFY PARAMETRE OTP ====================
 
 export function ApiVerifyParametreRetraitOtp() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 2/9 - Vérifier le numéro de retrait par OTP (ACTEUR: MEDECIN ou HOPITAL)',
+      summary: 'Vérifier OTP du paramètre de retrait',
       description:
-        "Le médecin ou l’hôpital saisit ici le code OTP reçu par email. " +
-        "Si le code est correct et non expiré, le numéro de retrait passe au statut VERIFIE.",
+        "Valide l’OTP lié au paramètre de retrait et passe son statut à VERIFIE.",
     }),
-    ApiParam({ name: 'parametreId', type: Number, example: 1 }),
-    ApiBody({ type: VerifyParametreRetraitOtpDto }),
+    ApiParam({
+      name: 'parametreId',
+      type: Number,
+      example: 1,
+      description: 'ID du paramètre de retrait',
+    }),
+    ApiBody({
+      schema: {
+        example: {
+          otp: '123456',
+        },
+      },
+    }),
     ApiResponse({
       status: 200,
-      description: 'Numéro de retrait vérifié avec succès',
+      description: 'OTP vérifié avec succès',
+      schema: {
+        example: {
+          message: 'OTP vérifié avec succès',
+          messageE: 'OTP verified successfully',
+          data: {
+            parametreRetraitId: 1,
+            userId: 12,
+            numeroRetrait: '699001122',
+            statut: 'VERIFIE',
+            otpValidatedAt: '2026-04-06T12:05:00.000Z',
+            verifieAt: '2026-04-06T12:05:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'OTP invalide ou expiré',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Paramètre de retrait introuvable',
     }),
   );
 }
+
+// ==================== 2 BIS. UPDATE PARAMETRE RETRAIT ====================
 
 export function ApiUpdateParametreRetrait() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 2 bis/9 - Modifier puis revalider le numéro de retrait (ACTEUR: MEDECIN ou HOPITAL)',
+      summary: 'Modifier le paramètre de retrait',
       description:
-        "Si l’utilisateur change son numéro de retrait, un nouvel OTP est renvoyé par email. " +
-        "Le nouveau numéro ne devient valide qu’après une nouvelle confirmation OTP.",
+        "Permet de modifier le numéro de retrait puis de relancer la vérification OTP.",
     }),
-    ApiParam({ name: 'parametreId', type: Number, example: 1 }),
-    ApiBody({ type: UpdateParametreRetraitDto }),
+    ApiParam({
+      name: 'parametreId',
+      type: Number,
+      example: 1,
+      description: 'ID du paramètre de retrait',
+    }),
+    ApiBody({
+      schema: {
+        example: {
+          numeroRetrait: '677889900',
+        },
+      },
+    }),
     ApiResponse({
       status: 200,
-      description: 'OTP envoyé pour revalidation du numéro de retrait',
+      description: 'Paramètre de retrait mis à jour avec succès',
+      schema: {
+        example: {
+          message: 'Paramètre de retrait mis à jour avec succès',
+          messageE: 'Withdrawal parameter updated successfully',
+          data: {
+            parametreRetraitId: 1,
+            userId: 12,
+            numeroRetrait: '677889900',
+            statut: 'OTP_EN_ATTENTE',
+            updatedAt: '2026-04-06T12:10:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'Données invalides',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Paramètre de retrait introuvable',
+    }),
+    ApiResponse({
+      status: 409,
+      description: 'Numéro de retrait déjà utilisé',
     }),
   );
 }
+
+// ==================== 2 TER. GET PARAMETRE RETRAIT ====================
 
 export function ApiGetParametreRetrait() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 2 ter/9 - Voir le paramètre de retrait actuel (ACTEUR: MEDECIN / HOPITAL / ADMIN)',
+      summary: 'Récupérer le paramètre de retrait d’un utilisateur',
       description:
-        "Retourne le numéro de retrait enregistré, son statut de vérification et ses dates associées. " +
-        "Un utilisateur ne peut posséder qu’un seul paramètre de retrait.",
+        "Retourne le paramètre de retrait lié à un utilisateur.",
     }),
-    ApiParam({ name: 'userId', type: Number, example: 7 }),
+    ApiParam({
+      name: 'userId',
+      type: Number,
+      example: 12,
+      description: "ID de l'utilisateur",
+    }),
     ApiResponse({
       status: 200,
       description: 'Paramètre de retrait récupéré avec succès',
+      schema: {
+        example: {
+          message: 'Paramètre de retrait récupéré avec succès',
+          messageE: 'Withdrawal parameter retrieved successfully',
+          data: {
+            parametreRetraitId: 1,
+            userId: 12,
+            numeroRetrait: '699001122',
+            statut: 'VERIFIE',
+            createdAt: '2026-04-06T12:00:00.000Z',
+            updatedAt: '2026-04-06T12:05:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Paramètre de retrait introuvable',
     }),
   );
 }
+
+// ==================== 3. GET SOLDE USER ====================
 
 export function ApiGetSoldeUser() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        "Étape 3/9 - Voir le solde disponible avant retrait (ACTEUR: MEDECIN / HOPITAL / ADMIN)",
+      summary: "Récupérer le solde d'un utilisateur",
       description:
-        "Cette API lit le solde chiffré en base, le déchiffre côté serveur et retourne la valeur lisible. " +
-        "Le frontend ne reçoit jamais la valeur chiffrée.",
+        "Retourne le solde disponible d’un utilisateur avant la demande de retrait.",
     }),
-    ApiParam({ name: 'userId', type: Number, example: 7 }),
+    ApiParam({
+      name: 'userId',
+      type: Number,
+      example: 12,
+      description: "ID de l'utilisateur",
+    }),
     ApiResponse({
       status: 200,
       description: 'Solde récupéré avec succès',
+      schema: {
+        example: {
+          message: 'Solde récupéré avec succès',
+          messageE: 'Balance retrieved successfully',
+          data: {
+            userId: 12,
+            soldeDisponible: 85000,
+            devise: 'XAF',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Utilisateur introuvable',
     }),
   );
 }
+
+// ==================== 4. DEMANDER RETRAIT ====================
 
 export function ApiDemanderRetrait() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 4/9 - Demander un retrait et recevoir un OTP (ACTEUR: MEDECIN ou HOPITAL)',
+      summary: 'Demander un retrait',
       description:
-        "Le système vérifie d’abord que le numéro de retrait est déjà vérifié. " +
-        "Ensuite il calcule le solde disponible réel en tenant compte des retraits déjà PENDING. " +
-        "Si le montant est disponible, un OTP à 6 chiffres est envoyé par email et la demande est créée en OTP_EN_ATTENTE.",
+        "Crée une demande de retrait avec statut OTP_EN_ATTENTE.",
     }),
-    ApiBody({ type: DemanderRetraitDto }),
+    ApiBody({
+      schema: {
+        example: {
+          userId: 12,
+          montant: 25000,
+        },
+      },
+    }),
     ApiResponse({
       status: 201,
-      description: 'OTP envoyé pour confirmer la demande de retrait',
+      description: 'Retrait demandé avec succès',
+      schema: {
+        example: {
+          message: 'Retrait demandé avec succès',
+          messageE: 'Withdrawal requested successfully',
+          data: {
+            retraitId: 10,
+            userId: 12,
+            parametreRetraitId: 1,
+            montant: 25000,
+            statut: 'OTP_EN_ATTENTE',
+            numeroRetraitSnapshot: '699001122',
+            demandeLe: '2026-04-06T12:10:00.000Z',
+            createdAt: '2026-04-06T12:10:00.000Z',
+            updatedAt: '2026-04-06T12:10:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'Montant invalide ou paramètre non vérifié',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Utilisateur ou paramètre introuvable',
     }),
   );
 }
+
+// ==================== 5. VERIFY RETRAIT OTP ====================
 
 export function ApiVerifyRetraitOtp() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 5/9 - Vérifier l’OTP de la demande de retrait (ACTEUR: MEDECIN ou HOPITAL)',
+      summary: "Vérifier l'OTP d’un retrait",
       description:
-        "L’utilisateur saisit ici le code OTP reçu par email pour sa demande de retrait. " +
-        "Si le code est correct et que le solde est toujours suffisant, la demande passe au statut PENDING.",
+        "Valide l’OTP de la demande de retrait et passe le statut à PENDING.",
     }),
-    ApiParam({ name: 'retraitId', type: Number, example: 1 }),
-    ApiBody({ type: VerifyRetraitOtpDto }),
+    ApiParam({
+      name: 'retraitId',
+      type: Number,
+      example: 10,
+      description: 'ID du retrait',
+    }),
+    ApiBody({
+      schema: {
+        example: {
+          otp: '123456',
+        },
+      },
+    }),
     ApiResponse({
       status: 200,
-      description: 'Retrait confirmé et mis en attente',
+      description: 'OTP du retrait vérifié avec succès',
+      schema: {
+        example: {
+          message: 'OTP du retrait vérifié avec succès',
+          messageE: 'Withdrawal OTP verified successfully',
+          data: {
+            retraitId: 10,
+            statut: 'PENDING',
+            otpValidatedAt: '2026-04-06T12:12:00.000Z',
+            updatedAt: '2026-04-06T12:12:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'OTP invalide ou expiré',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Retrait introuvable',
     }),
   );
 }
+
+// ==================== 6. GET MES RETRAITS ====================
 
 export function ApiGetMesRetraits() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        "Étape 6/9 - Voir l’historique de ses retraits (ACTEUR: MEDECIN ou HOPITAL)",
+      summary: 'Lister les retraits d’un utilisateur',
       description:
-        "Retourne la liste des demandes de retrait d’un utilisateur, avec pagination et filtre par statut. " +
-        "Le frontend peut ainsi suivre les retraits OTP_EN_ATTENTE, PENDING, COMPLETED ou CANCELLED.",
+        "Retourne la liste paginée des retraits d’un utilisateur selon les filtres.",
     }),
-    ApiQuery({ name: 'userId', required: true, type: Number }),
-    ApiQuery({ name: 'statut', required: false, type: String }),
-    ApiQuery({ name: 'page', required: false, type: Number, default: 1 }),
-    ApiQuery({ name: 'limit', required: false, type: Number, default: 20 }),
+    ApiQuery({
+      name: 'userId',
+      required: false,
+      type: Number,
+      description: "Filtrer par utilisateur",
+    }),
+    ApiQuery({
+      name: 'statut',
+      required: false,
+      type: String,
+      description: 'Filtrer par statut',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 20,
+    }),
     ApiResponse({
       status: 200,
-      description: 'Historique des retraits récupéré avec succès',
+      description: 'Liste des retraits récupérée avec succès',
+      schema: {
+        example: {
+          message: 'Liste des retraits récupérée avec succès',
+          messageE: 'Withdrawals retrieved successfully',
+          data: [
+            {
+              retraitId: 10,
+              userId: 12,
+              montant: 25000,
+              statut: 'PENDING',
+              numeroRetraitSnapshot: '699001122',
+              demandeLe: '2026-04-06T12:10:00.000Z',
+            },
+          ],
+          meta: {
+            total: 1,
+            page: 1,
+            limit: 20,
+            pageCount: 1,
+          },
+        },
+      },
     }),
   );
 }
+
+// ==================== 7. GET ALL RETRAITS ADMIN ====================
 
 export function ApiGetAllRetraitsAdmin() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 7/9 - Voir toutes les demandes de retrait côté admin (ACTEUR: ADMIN ou SUPERADMIN)',
+      summary: 'Lister tous les retraits côté admin',
       description:
-        "Retourne toute l’historique des retraits, tous utilisateurs confondus, avec pagination et filtre par statut. " +
-        "Cette API sert au tableau de bord admin pour voir les demandes à traiter.",
+        "Retourne la liste paginée de toutes les demandes de retrait avec filtres admin.",
     }),
-    ApiQuery({ name: 'statut', required: false, type: String }),
-    ApiQuery({ name: 'page', required: false, type: Number, default: 1 }),
-    ApiQuery({ name: 'limit', required: false, type: Number, default: 20 }),
+    ApiQuery({
+      name: 'userId',
+      required: false,
+      type: Number,
+      description: 'Filtrer par utilisateur',
+    }),
+    ApiQuery({
+      name: 'statut',
+      required: false,
+      type: String,
+      description: 'Filtrer par statut',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      type: Number,
+      example: 1,
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      type: Number,
+      example: 20,
+    }),
     ApiResponse({
       status: 200,
-      description: 'Liste complète des retraits récupérée avec succès',
+      description: 'Liste admin des retraits récupérée avec succès',
+      schema: {
+        example: {
+          message: 'Liste des retraits récupérée avec succès',
+          messageE: 'Withdrawals retrieved successfully',
+          data: [
+            {
+              retraitId: 10,
+              userId: 12,
+              montant: 25000,
+              statut: 'PENDING',
+              numeroRetraitSnapshot: '699001122',
+              demandeLe: '2026-04-06T12:10:00.000Z',
+              user: {
+                userId: 12,
+                firstName: 'Paul',
+                lastName: 'Meka',
+                email: 'paul@test.com',
+                phone: '699001122',
+              },
+            },
+          ],
+          meta: {
+            total: 1,
+            page: 1,
+            limit: 20,
+            pageCount: 1,
+          },
+        },
+      },
     }),
   );
 }
+
+// ==================== 8. COMPLETE RETRAIT ====================
 
 export function ApiCompleteRetrait() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 8/9 - Compléter le retrait après envoi réel de l’argent (ACTEUR: ADMIN ou SUPERADMIN)',
+      summary: 'Compléter un retrait côté admin',
       description:
-        "L’admin appelle cette API uniquement après avoir réellement envoyé l’argent. " +
-        "Le serveur lit alors le solde chiffré, le déchiffre, soustrait le montant, rechiffre la nouvelle valeur puis met le retrait au statut COMPLETED.",
+        "Permet à l’administrateur de finaliser un retrait en COMPLETED.",
     }),
-    ApiParam({ name: 'retraitId', type: Number, example: 1 }),
-    ApiBody({ type: CompleteRetraitDto }),
+    ApiParam({
+      name: 'retraitId',
+      type: Number,
+      example: 10,
+      description: 'ID du retrait',
+    }),
+    ApiBody({
+      schema: {
+        example: {
+          referenceTraitementAdmin: 'TRX-2026-0001',
+        },
+      },
+    }),
     ApiResponse({
       status: 200,
       description: 'Retrait complété avec succès',
+      schema: {
+        example: {
+          message: 'Retrait traité avec succès',
+          messageE: 'Withdrawal completed successfully',
+          data: {
+            retraitId: 10,
+            statut: 'COMPLETED',
+            referenceTraitementAdmin: 'TRX-2026-0001',
+            completeLe: '2026-04-06T13:00:00.000Z',
+            completeParAdminId: 1,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'Retrait non traitable',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Retrait introuvable',
     }),
   );
 }
+
+// ==================== 9. CANCEL RETRAIT ====================
 
 export function ApiCancelRetrait() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary:
-        'Étape 9/9 - Annuler une demande de retrait non finalisée (ACTEUR: PROPRIETAIRE ou ADMIN)',
+      summary: 'Annuler un retrait',
       description:
-        "Le propriétaire du retrait ou un admin peut annuler une demande encore OTP_EN_ATTENTE ou PENDING. " +
-        "Aucun débit n’est appliqué au solde tant que le retrait n’est pas COMPLETED.",
+        "Permet d’annuler une demande de retrait.",
     }),
-    ApiParam({ name: 'retraitId', type: Number, example: 1 }),
-    ApiBody({ type: CancelRetraitDto }),
+    ApiParam({
+      name: 'retraitId',
+      type: Number,
+      example: 10,
+      description: 'ID du retrait',
+    }),
+    ApiBody({
+      schema: {
+        example: {
+          motifAnnulation: 'Erreur sur le montant',
+        },
+      },
+    }),
     ApiResponse({
       status: 200,
       description: 'Retrait annulé avec succès',
+      schema: {
+        example: {
+          message: 'Retrait annulé avec succès',
+          messageE: 'Withdrawal cancelled successfully',
+          data: {
+            retraitId: 10,
+            statut: 'CANCELLED',
+            motifAnnulation: 'Erreur sur le montant',
+            annuleLe: '2026-04-06T12:20:00.000Z',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: 400,
+      description: 'Retrait non annulable',
+    }),
+    ApiResponse({
+      status: 404,
+      description: 'Retrait introuvable',
     }),
   );
 }

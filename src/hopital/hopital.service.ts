@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateHopitalDto } from './dto/create-hopital.dto';
 import { UpdateHopitalDto } from './dto/update-hopital.dto';
 import { HopitalQueryDto } from './dto/hopital-query.dto';
-import { UserType } from 'generated/prisma';
+import { Sex, UserType } from 'generated/prisma';
 import * as bcrypt from 'bcryptjs';
 import { uploadImageToCloudinary } from '../utils/cloudinary';
 import { AddMedecinsDto, RemoveMedecinsDto } from './dto/add-medecin.dto';
@@ -14,17 +14,28 @@ export class HopitalService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Helper pour uploader le profil si base64
-  private async uploadProfileIfNeeded(profile: string | undefined, hospitalName: string): Promise<string | undefined> {
-    if (!profile) return undefined;
-    try {
-      return await uploadImageToCloudinary(profile, `hopitals/${hospitalName.replace(/\s/g, '_')}`);
-    } catch (error) {
-      throw new BadRequestException({
-        message: `Erreur lors de l'upload de l'image: ${error.message}`,
-        messageE: `Error uploading image: ${error.message}`,
-      });
-    }
+ private async uploadProfileIfNeeded(
+  profile: string | undefined,
+  hospitalName: string,
+): Promise<string | undefined> {
+  if (!profile) return undefined;
+
+  if (/^https?:\/\//i.test(profile)) {
+    return profile;
   }
+
+  try {
+    return await uploadImageToCloudinary(
+      profile,
+      `hopitals/profiles/${hospitalName.replace(/\s/g, '_')}`,
+    );
+  } catch (error) {
+    throw new BadRequestException({
+      message: `Erreur lors de l'upload du profil: ${error.message}`,
+      messageE: `Error uploading profile: ${error.message}`,
+    });
+  }
+}
 
   // Méthode utilitaire pour vérifier l'unicité par type
   private async checkUniqueEmailAndPhone(
@@ -67,50 +78,123 @@ export class HopitalService {
   }
 
   // 1.1 - Créer un compte hôpital
-  async create(dto: CreateHopitalDto) {
-    // Vérifier l'unicité pour le type HOPITAL
-    await this.checkUniqueEmailAndPhone(dto.email, dto.phone, UserType.HOPITAL);
+  // async create(dto: CreateHopitalDto) {
+  //   // Vérifier l'unicité pour le type HOPITAL
+  //   await this.checkUniqueEmailAndPhone(dto.email, dto.phone, UserType.HOPITAL);
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+  //   const hashedPassword = await bcrypt.hash(dto.password, 10);
     
-    // Upload du profil si base64
-    const profileUrl = await this.uploadProfileIfNeeded(dto.profile, dto.firstName);
+  //   // Upload du profil si base64
+  //   const profileUrl = await this.uploadProfileIfNeeded(dto.profile, dto.firstName);
 
-    const hopital = await this.prisma.user.create({
-      data: {
-        firstName: dto.firstName,
-        lastName: dto.lastName || dto.city,
-        sex: dto.sex,
-        email: dto.email,
-        phone: dto.phone,
-        password: hashedPassword,
-        userType: UserType.HOPITAL,
-        city: dto.city,
-        address: dto.address,
-        profile: profileUrl,
-        hospitalName: dto.firstName,
-      },
-      select: {
-        userId: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        userType: true,
-        city: true,
-        address: true,
-        profile: true,
-        isVerified: true,
-        createdAt: true,
-      },
-    });
+  //   const hopital = await this.prisma.user.create({
+  //     data: {
+  //       firstName: dto.firstName,
+  //       lastName: dto.lastName || dto.city,
+  //       sex: dto.sex,
+  //       email: dto.email,
+  //       phone: dto.phone,
+  //       password: hashedPassword,
+  //       userType: UserType.HOPITAL,
+  //       city: dto.city,
+  //       address: dto.address,
+  //       profile: profileUrl,
+  //       hospitalName: dto.firstName,
+  //     },
+  //     select: {
+  //       userId: true,
+  //       firstName: true,
+  //       lastName: true,
+  //       email: true,
+  //       phone: true,
+  //       userType: true,
+  //       city: true,
+  //       address: true,
+  //       profile: true,
+  //       isVerified: true,
+  //       createdAt: true,
+  //     },
+  //   });
 
-    return {
-      message: 'Hôpital créé avec succès',
-      messageE: 'Hospital created successfully',
-      data: hopital,
-    };
+  //   return {
+  //     message: 'Hôpital créé avec succès',
+  //     messageE: 'Hospital created successfully',
+  //     data: hopital,
+  //   };
+  // }
+
+
+
+// Helper pour uploader le document si base64 ou conserver l'URL si déjà https
+private async uploadDocumentIfNeeded(
+  document: string | undefined,
+  hospitalName: string,
+): Promise<string | undefined> {
+  if (!document) return undefined;
+
+  if (/^https?:\/\//i.test(document)) {
+    return document;
   }
+
+  try {
+    return await uploadImageToCloudinary(
+      document,
+      `hopitals/documents/${hospitalName.replace(/\s/g, '_')}`,
+    );
+  } catch (error) {
+    throw new BadRequestException({
+      message: `Erreur lors de l'upload du document: ${error.message}`,
+      messageE: `Error uploading document: ${error.message}`,
+    });
+  }
+}
+
+// 1.1 - Créer un compte hôpital
+async create(dto: CreateHopitalDto) {
+  await this.checkUniqueEmailAndPhone(dto.email, dto.phone, UserType.HOPITAL);
+
+  const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+  const profileUrl = await this.uploadProfileIfNeeded(dto.profile, dto.firstName);
+  const documentUrl = await this.uploadDocumentIfNeeded(dto.document, dto.firstName);
+
+  const hopital = await this.prisma.user.create({
+    data: {
+      firstName: dto.firstName,
+      lastName: dto.lastName || dto.city,
+      sex: Sex.OTHER,
+      email: dto.email,
+      phone: dto.phone,
+      password: hashedPassword,
+      userType: UserType.HOPITAL,
+      city: dto.city,
+      address: dto.address,
+      profile: profileUrl,
+      document: documentUrl,
+      hospitalName: dto.firstName,
+    },
+    select: {
+      userId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      userType: true,
+      city: true,
+      address: true,
+      profile: true,
+      document: true,
+      isVerified: true,
+      createdAt: true,
+    },
+  });
+
+  return {
+    message: 'Hôpital créé avec succès',
+    messageE: 'Hospital created successfully',
+    data: hopital,
+  };
+}
 
   // 1.2 - Récupérer tous les hôpitaux
   async findAll(query: HopitalQueryDto) {

@@ -23,6 +23,8 @@ model User {
   city                String?
   address             String?
   addressHosp         String?
+    document            String?
+
   hospitalName        String?
   longitude           Decimal?         @db.Decimal(10, 8)
   latitude            Decimal?         @db.Decimal(10, 8)

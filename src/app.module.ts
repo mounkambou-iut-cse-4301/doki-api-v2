@@ -29,9 +29,10 @@ import { PackageModule } from './package/package.module';
 import { SettingsModule } from './settings/settings.module';
 import { CandidatureModule } from './candidature/candidature.module';
 import { PublicitesModule } from './publicites/publicites.module';
+import { RetraitsModule } from './retraits/retraits.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal:true}),RolesModule, SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule, StatsModule, AiModule, PermissionsModule, RolePermissionsModule, HopitalModule, PackageModule, SettingsModule, CandidatureModule, PublicitesModule],
+  imports: [ConfigModule.forRoot({isGlobal:true}),RolesModule, SpecialitiesModule, PrismaModule, UsersModule, ReservationsModule, PlanningsModule, OrdonancesModule, AbonnementsModule, VideosModule, AdminsModule, AuthModule, NotificationsModule, SuivisModule, MessageriesModule, CategoriesModule, FormationsModule, FichesModule, CasDifficilesModule, CategoryVideosModule, ProtocolesOrdonanceModule, StatsModule, AiModule, PermissionsModule, RolePermissionsModule, HopitalModule, PackageModule, SettingsModule, CandidatureModule, PublicitesModule, RetraitsModule],
 })
 export class AppModule {}

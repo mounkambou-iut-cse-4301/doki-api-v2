@@ -67,11 +67,79 @@ model User {
   candidatures        Candidature[]    @relation("MedecinCandidatures")
   candidaturesHopital Candidature[]    @relation("HopitalCandidatures")
 
+    parametreRetrait      ParametreRetrait? @relation("UserParametreRetrait")
+  retraitsDemandes      Retrait[]         @relation("UserRetraitsDemandes")
+  retraitsTraitesAdmin  Retrait[]         @relation("AdminRetraitsTraites")
+
   @@unique([email, userType])
   @@unique([phone, userType])
   @@index([email])
   @@index([phone])
   @@index([specialityId], map: "User_specialityId_fkey")
+}
+
+enum StatutParametreRetrait {
+  OTP_EN_ATTENTE
+  VERIFIE
+}
+
+enum StatutRetrait {
+  OTP_EN_ATTENTE
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+model ParametreRetrait {
+  parametreRetraitId Int                    @id @default(autoincrement())
+  userId             Int                    @unique
+  numeroRetrait      String                 @unique
+  statut             StatutParametreRetrait @default(OTP_EN_ATTENTE)
+  otpHash            String?
+  otpExpiresAt       DateTime?
+  otpValidatedAt     DateTime?
+  verifieAt          DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  user               User                   @relation("UserParametreRetrait", fields: [userId], references: [userId])
+  retraits           Retrait[]
+
+  @@index([statut])
+}
+
+model Retrait {
+  retraitId                 Int           @id @default(autoincrement())
+  userId                    Int
+  parametreRetraitId        Int
+  montant                   Decimal       @db.Decimal(10, 2)
+  statut                    StatutRetrait @default(OTP_EN_ATTENTE)
+
+  numeroRetraitSnapshot     String
+
+  otpHash                   String?
+  otpExpiresAt              DateTime?
+  otpValidatedAt            DateTime?
+
+  referenceTraitementAdmin  String?
+  motifAnnulation           String?
+
+  demandeLe                 DateTime      @default(now())
+  completeLe                DateTime?
+  annuleLe                  DateTime?
+  completeParAdminId        Int?
+
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+
+  user                      User             @relation("UserRetraitsDemandes", fields: [userId], references: [userId])
+  completeParAdmin          User?            @relation("AdminRetraitsTraites", fields: [completeParAdminId], references: [userId])
+  parametreRetrait          ParametreRetrait @relation(fields: [parametreRetraitId], references: [parametreRetraitId])
+
+  @@index([userId])
+  @@index([parametreRetraitId])
+  @@index([statut])
+  @@index([completeParAdminId])
+  @@index([demandeLe])
 }
 
 enum CibleAudiencePublicite {
@@ -480,7 +548,7 @@ model CategoryVideo {
 
 model SoldeMedecin {
   soldeMedecinId Int      @id @default(autoincrement())
-  solde          Decimal  @default(0.00) @db.Decimal(10, 2)
+  solde          String   @db.Text
   medecinId      Int
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

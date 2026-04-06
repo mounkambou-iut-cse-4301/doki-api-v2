@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -76,7 +77,7 @@ export class UsersController {
   @Get()
   @ApiOperation({ summary: 'Lister les utilisateurs (filtres & pagination)' })
   @ApiResponse({ status: 200, description: 'Liste retournée.' })
-  findAll(@Query() query: QueryUserDto) {
+  findAll(@Query(new ValidationPipe({ transform: true })) query: QueryUserDto) {
     return this.svc.findAll(query);
   }
 

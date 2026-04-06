@@ -239,8 +239,8 @@ async signupMedecin(dto: CreateMedecinDto) {
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ConflictException) throw error;
       throw new BadRequestException({
-        message: `Erreur mise à jour médecin : ${error.message}`,
-        messageE: `Error updating doctor: ${error.message}`,
+        message: `Erreur mise à jour médecin : ${(error as Error).message}`,
+        messageE: `Error updating doctor: ${(error as Error).message}`,
       });
     }
   }
@@ -560,12 +560,14 @@ async findAll(query: QueryUserDto) {
   try {
     const page: number = query.page != null ? Number(query.page) : 1;
     const limit: number = query.limit != null ? Number(query.limit) : 10;
+
     if (page < 1 || limit < 1) {
       throw new BadRequestException({
         message: 'Page et limit doivent être >= 1',
         messageE: 'Page and limit must be >= 1',
       });
     }
+
     const skip = (page - 1) * limit;
 
     const q = (query.q && query.q.trim())
@@ -575,6 +577,7 @@ async findAll(query: QueryUserDto) {
         : undefined;
 
     const where: any = {};
+
     if (q) {
       where.OR = [
         { firstName: { contains: q } },
@@ -583,25 +586,47 @@ async findAll(query: QueryUserDto) {
         { phone: { contains: q } },
       ];
     }
-    if (query.userType) where.userType = query.userType;
-    if (typeof query.isBlock === 'boolean') where.isBlock = query.isBlock;
-    if (query.specialityId != null) where.specialityId = Number(query.specialityId);
-    if (typeof query.isVerified === 'boolean') where.isVerified = query.isVerified;
+
+    if (query.userType) {
+      where.userType = query.userType;
+    }
+
+    const parsedIsBlock = this.parseQueryBoolean(query.isBlock);
+    if (parsedIsBlock !== undefined) {
+      where.isBlock = parsedIsBlock;
+    }
+
+    if (query.specialityId != null) {
+      where.specialityId = Number(query.specialityId);
+    }
+
+    const parsedIsVerified = this.parseQueryBoolean(query.isVerified);
+    if (parsedIsVerified !== undefined) {
+      where.isVerified = parsedIsVerified;
+    }
+
+    // console.log('RAW QUERY DTO =', query);
+    // console.log('PARSED FILTERS =', {
+    //   rawIsBlock: query.isBlock,
+    //   parsedIsBlock,
+    //   rawIsVerified: query.isVerified,
+    //   parsedIsVerified,
+    //   where,
+    // });
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
         include: {
           speciality: true,
-          plannings: { 
-            take: 1, 
-            orderBy: { createdAt: 'desc' } 
+          plannings: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
           },
-          soldes: { 
-            take: 1, 
-            orderBy: { updatedAt: 'desc' } 
+          soldes: {
+            take: 1,
+            orderBy: { updatedAt: 'desc' },
           },
-          // Pour les feedbacks, ne pas inclure les relations patient/medecin
           feedbacksMed: {
             take: 3,
             orderBy: { createdAt: 'desc' },
@@ -618,9 +643,12 @@ async findAll(query: QueryUserDto) {
       this.prisma.user.count({ where }),
     ]);
 
-    // Calculer la note moyenne pour les médecins
-    const medecinIds = items.filter(u => u.userType === UserType.MEDECIN).map(u => u.userId);
+    const medecinIds = items
+      .filter((u) => u.userType === UserType.MEDECIN)
+      .map((u) => u.userId);
+
     let ratingMap = new Map<number, { average: number; count: number }>();
+
     if (medecinIds.length) {
       const rows = await this.prisma.feedback.groupBy({
         by: ['medecinId'],
@@ -628,69 +656,120 @@ async findAll(query: QueryUserDto) {
         _avg: { note: true },
         _count: { _all: true },
       });
+
       ratingMap = new Map(
-        rows.map(r => [r.medecinId, { average: r._avg.note ?? 0, count: r._count._all }]),
+        rows.map((r) => [
+          r.medecinId,
+          {
+            average: r._avg.note ?? 0,
+            count: r._count._all,
+          },
+        ]),
       );
     }
 
-    // Récupérer les informations patient/medecin séparément pour les feedbacks si nécessaire
-    const items1 = await Promise.all(items.map(async (user) => {
-      // Récupérer les noms des patients pour les feedbacksMed
-      const feedbacksMedWithPatients = await Promise.all(
-        user.feedbacksMed.map(async (feedback) => {
-          const patient = await this.prisma.user.findUnique({
-            where: { userId: feedback.patientId },
-            select: { userId: true, firstName: true, lastName: true, profile: true }
-          });
-          return {
-            ...feedback,
-            patient: patient || null
-          };
-        })
-      );
+    const items1 = await Promise.all(
+      items.map(async (user) => {
+        const feedbacksMedWithPatients = await Promise.all(
+          user.feedbacksMed.map(async (feedback) => {
+            const patient = await this.prisma.user.findUnique({
+              where: { userId: feedback.patientId },
+              select: {
+                userId: true,
+                firstName: true,
+                lastName: true,
+                profile: true,
+              },
+            });
 
-      // Récupérer les noms des médecins pour les feedbacksPat
-      const feedbacksPatWithMedecins = await Promise.all(
-        user.feedbacksPat.map(async (feedback) => {
-          const medecin = await this.prisma.user.findUnique({
-            where: { userId: feedback.medecinId },
-            select: { userId: true, firstName: true, lastName: true, profile: true }
-          });
-          return {
-            ...feedback,
-            medecin: medecin || null
-          };
-        })
-      );
+            return {
+              ...feedback,
+              patient: patient || null,
+            };
+          }),
+        );
 
-      const { password, plannings, soldes, feedbacksMed, feedbacksPat, ...safe } = user;
-      
-      return {
-        ...safe,
-        planning: plannings?.[0] ?? null,
-        solde: soldes?.[0] ?? null,
-        feedbackRating:
-          safe.userType === UserType.MEDECIN
-            ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
-            : null,
-        lastFeedbacks:
-          safe.userType === UserType.MEDECIN
-            ? feedbacksMedWithPatients
-            : feedbacksPatWithMedecins,
-      };
-    }));
+        const feedbacksPatWithMedecins = await Promise.all(
+          user.feedbacksPat.map(async (feedback) => {
+            const medecin = await this.prisma.user.findUnique({
+              where: { userId: feedback.medecinId },
+              select: {
+                userId: true,
+                firstName: true,
+                lastName: true,
+                profile: true,
+              },
+            });
+
+            return {
+              ...feedback,
+              medecin: medecin || null,
+            };
+          }),
+        );
+
+        const {
+          password,
+          plannings,
+          soldes,
+          feedbacksMed,
+          feedbacksPat,
+          ...safe
+        } = user;
+
+        return {
+          ...safe,
+          planning: plannings?.[0] ?? null,
+          solde: soldes?.[0] ?? null,
+          feedbackRating:
+            safe.userType === UserType.MEDECIN
+              ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
+              : null,
+          lastFeedbacks:
+            safe.userType === UserType.MEDECIN
+              ? feedbacksMedWithPatients
+              : feedbacksPatWithMedecins,
+        };
+      }),
+    );
 
     return {
       items1,
-      meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
+      meta: {
+        total,
+        page,
+        limit,
+        lastPage: Math.ceil(total / limit),
+      },
     };
   } catch (error) {
     if (error instanceof BadRequestException) throw error;
+
+    const message = error instanceof Error ? error.message : String(error);
+
     throw new BadRequestException({
-      message: `Erreur récupération : ${error.message}`,
-      messageE: `Error fetching users: ${error.message}`,
+      message: `Erreur récupération : ${message}`,
+      messageE: `Error fetching users: ${message}`,
     });
   }
+}
+
+private parseQueryBoolean(value?: string): boolean | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+
+  return undefined;
 }
 
 // 6. GET ONE USER BY ID AVEC RELATIONS (Version simplifiée sans relations problématiques)

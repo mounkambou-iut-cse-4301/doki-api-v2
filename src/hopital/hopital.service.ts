@@ -30,9 +30,10 @@ export class HopitalService {
       `hopitals/profiles/${hospitalName.replace(/\s/g, '_')}`,
     );
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     throw new BadRequestException({
-      message: `Erreur lors de l'upload du profil: ${error.message}`,
-      messageE: `Error uploading profile: ${error.message}`,
+      message: `Erreur lors de l'upload du profil: ${errorMessage}`,
+      messageE: `Error uploading profile: ${errorMessage}`,
     });
   }
 }
@@ -142,9 +143,10 @@ private async uploadDocumentIfNeeded(
       `hopitals/documents/${hospitalName.replace(/\s/g, '_')}`,
     );
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     throw new BadRequestException({
-      message: `Erreur lors de l'upload du document: ${error.message}`,
-      messageE: `Error uploading document: ${error.message}`,
+      message: `Erreur lors de l'upload du document: ${errorMessage}`,
+      messageE: `Error uploading document: ${errorMessage}`,
     });
   }
 }

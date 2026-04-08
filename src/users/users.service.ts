@@ -245,317 +245,205 @@ async signupMedecin(dto: CreateMedecinDto) {
     }
   }
 
-  // 5. GET ALL USERS AVEC FILTRES & PAGINATION
-  // async findAll(query: QueryUserDto) {
-  //   try {
-  //     const page: number = query.page != null ? Number(query.page) : 1;
-  //     const limit: number = query.limit != null ? Number(query.limit) : 10;
-  //     if (page < 1 || limit < 1) {
-  //       throw new BadRequestException({
-  //         message: 'Page et limit doivent être >= 1',
-  //         messageE: 'Page and limit must be >= 1',
-  //       });
-  //     }
-  //     const skip = (page - 1) * limit;
+// async findAll(query: QueryUserDto) {
+//   try {
+//     const page: number = query.page != null ? Number(query.page) : 1;
+//     const limit: number = query.limit != null ? Number(query.limit) : 10;
 
-  //     const q = (query.q && query.q.trim())
-  //       ? query.q.trim()
-  //       : (query.name && query.name.trim())
-  //         ? query.name.trim()
-  //         : undefined;
+//     if (page < 1 || limit < 1) {
+//       throw new BadRequestException({
+//         message: 'Page et limit doivent être >= 1',
+//         messageE: 'Page and limit must be >= 1',
+//       });
+//     }
 
-  //     const where: any = {};
-  //     if (q) {
-  //       where.OR = [
-  //         { firstName: { contains: q } },
-  //         { lastName: { contains: q } },
-  //         { email: { contains: q } },
-  //         { phone: { contains: q } },
-  //       ];
-  //     }
-  //     if (query.userType) where.userType = query.userType;
-  //     if (typeof query.isBlock === 'boolean') where.isBlock = query.isBlock;
-  //     if (query.specialityId != null) where.specialityId = Number(query.specialityId);
-  //     if (typeof query.isVerified === 'boolean') where.isVerified = query.isVerified;
+//     const skip = (page - 1) * limit;
 
-  //     const [items, total] = await this.prisma.$transaction([
-  //       this.prisma.user.findMany({
-  //         where,
-  //         include: {
-  //           speciality: true,
+//     const q = (query.q && query.q.trim())
+//       ? query.q.trim()
+//       : (query.name && query.name.trim())
+//         ? query.name.trim()
+//         : undefined;
 
-  //           feedbacksMed: {
-  //             take: 3,
-  //             orderBy: { createdAt: 'desc' },
-  //             include: {
-  //               patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //             },
-  //           },
-  //           feedbacksPat: {
-  //             take: 3,
-  //             orderBy: { createdAt: 'desc' },
-  //             include: {
-  //               medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //             },
-  //           },
-  //           plannings: { take: 1, orderBy: { createdAt: 'desc' } },
-  //           soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
-  //           reservationsM: {
-  //             take: 3,
-  //             orderBy: { createdAt: 'desc' },
-  //             select: {
-  //               reservationId: true,
-  //               date: true,
-  //               hour: true,
-  //               status: true,
-  //               patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //             },
-  //           },
-  //           ordonnancesM: {
-  //             take: 3,
-  //             orderBy: { createdAt: 'desc' },
-  //             select: {
-  //               ordonanceId: true,
-  //               dureeTraitement: true,
-  //               createdAt: true,
-  //               patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //             },
-  //           },
-  //           abonnementsM: {
-  //             take: 3,
-  //             orderBy: { createdAt: 'desc' },
-  //             select: {
-  //               abonnementId: true,
-  //               debutDate: true,
-  //               endDate: true,
-  //               status: true,
-  //               amount: true,
-  //               patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //             },
-  //           },
-  //           videos: {
-  //             take: 3,
-  //             orderBy: { createdAt: 'desc' },
-  //             select: {
-  //               videoId: true,
-  //               title: true,
-  //               path: true,
-  //               category: true,
-  //               createdAt: true,
-  //             },
-  //           },
-  //         },
-  //         skip,
-  //         take: limit,
-  //         orderBy: { firstName: 'asc' },
-  //       }),
-  //       this.prisma.user.count({ where }),
-  //     ]);
+//     const where: any = {};
 
-  //     const medecinIds = items.filter(u => u.userType === UserType.MEDECIN).map(u => u.userId);
-  //     let ratingMap = new Map<number, { average: number; count: number }>();
-  //     if (medecinIds.length) {
-  //       const rows = await this.prisma.feedback.groupBy({
-  //         by: ['medecinId'],
-  //         where: { medecinId: { in: medecinIds } },
-  //         _avg: { note: true },
-  //         _count: { _all: true },
-  //       });
-  //       ratingMap = new Map(
-  //         rows.map(r => [r.medecinId, { average: r._avg.note ?? 0, count: r._count._all }]),
-  //       );
-  //     }
+//     if (q) {
+//       where.OR = [
+//         { firstName: { contains: q } },
+//         { lastName: { contains: q } },
+//         { email: { contains: q } },
+//         { phone: { contains: q } },
+//       ];
+//     }
 
-  //     const items1 = items.map(
-  //       ({
-  //         password,
-  //         plannings,
-  //         soldes,
-  //         feedbacksMed,
-  //         feedbacksPat,
-  //         reservationsM,
-  //         ordonnancesM,
-  //         abonnementsM,
-  //         videos,
-  //         ...safe
-  //       }) => ({
-  //         ...safe,
-  //         planning: plannings?.[0] ?? null,
-  //         solde: soldes?.[0] ?? null,
-  //         feedbackRating:
-  //           safe.userType === UserType.MEDECIN
-  //             ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
-  //             : null,
-  //         lastFeedbacks:
-  //           safe.userType === UserType.MEDECIN
-  //             ? feedbacksMed
-  //             : feedbacksPat,
-  //         lastReservations: reservationsM ?? [],
-  //         lastOrdonnances: ordonnancesM ?? [],
-  //         lastAbonnements: abonnementsM ?? [],
-  //         lastVideos: videos ?? [],
-  //       }),
-  //     );
+//     if (query.userType) {
+//       where.userType = query.userType;
+//     }
 
-  //     return {
-  //       items1,
-  //       meta: { total, page, limit, lastPage: Math.ceil(total / limit) },
-  //     };
-  //   } catch (error) {
-  //     if (error instanceof BadRequestException) throw error;
-  //     throw new BadRequestException({
-  //       message: `Erreur récupération : ${error.message}`,
-  //       messageE: `Error fetching users: ${error.message}`,
-  //     });
-  //   }
-  // }
+//     const parsedIsBlock = this.parseQueryBoolean(query.isBlock);
+//     if (parsedIsBlock !== undefined) {
+//       where.isBlock = parsedIsBlock;
+//     }
 
-  // 5. GET ALL USERS AVEC FILTRES & PAGINATION
+//     if (query.specialityId != null) {
+//       where.specialityId = Number(query.specialityId);
+//     }
 
-  // 6. GET ONE USER BY ID AVEC RELATIONS
-  // async findOne(id: number) {
-  //   try {
-  //     const user = await this.prisma.user.findUnique({
-  //       where: { userId: id },
-  //       include: {
-  //         speciality: true,
-  //         favoritesMed: true,
-  //         favoritesPat: true,
-  //         videos: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'desc' },
-  //           select: { videoId: true, title: true, path: true, category: true, createdAt: true },
-  //         },
-  //         reservationsM: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'desc' },
-  //           select: {
-  //             reservationId: true,
-  //             date: true,
-  //             hour: true,
-  //             status: true,
-  //             patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //           },
-  //         },
-  //         ordonnancesM: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'desc' },
-  //           select: {
-  //             ordonanceId: true,
-  //             dureeTraitement: true,
-  //             createdAt: true,
-  //             patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //           },
-  //         },
-  //         abonnementsM: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'desc' },
-  //           select: {
-  //             abonnementId: true,
-  //             debutDate: true,
-  //             endDate: true,
-  //             numberOfTimePlanReservation: true,
-  //             status: true,
-  //             amount: true,
-  //             transactionId: true,
-  //             createdAt: true,
-  //             medecin: { select: { userId: true, firstName: true, lastName: true, email: true } },
-  //             patient: { select: { userId: true, firstName: true, lastName: true, email: true } },
-  //           },
-  //         },
-  //         abonnementsP: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'desc' },
-  //           select: {
-  //             abonnementId: true,
-  //             debutDate: true,
-  //             endDate: true,
-  //             numberOfTimePlanReservation: true,
-  //             status: true,
-  //             amount: true,
-  //             transactionId: true,
-  //             createdAt: true,
-  //             medecin: { select: { userId: true, firstName: true, lastName: true, email: true } },
-  //             patient: { select: { userId: true, firstName: true, lastName: true, email: true } },
-  //           },
-  //         },
-  //         feedbacksMed: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'desc' },
-  //           include: {
-  //             patient: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //           },
-  //         },
-  //         feedbacksPat: {
-  //           take: 3,
-  //           orderBy: { createdAt: 'asc' },
-  //           include: {
-  //             medecin: { select: { userId: true, firstName: true, lastName: true, profile: true } },
-  //           },
-  //         },
-  //         roles: { include: { role: true } },
-  //         plannings: { take: 1, orderBy: { createdAt: 'desc' } },
-  //         soldes: { take: 1, orderBy: { updatedAt: 'desc' } },
-  //         reservationsP: true,
-  //         ordonnancesP: true,
-  //       },
-  //     });
+//     const parsedIsVerified = this.parseQueryBoolean(query.isVerified);
+//     if (parsedIsVerified !== undefined) {
+//       where.isVerified = parsedIsVerified;
+//     }
 
-  //     if (!user) {
-  //       throw new NotFoundException({
-  //         message: `Utilisateur d'ID ${id} introuvable.`,
-  //         messageE: `User with ID ${id} not found.`,
-  //       });
-  //     }
+//     // console.log('RAW QUERY DTO =', query);
+//     // console.log('PARSED FILTERS =', {
+//     //   rawIsBlock: query.isBlock,
+//     //   parsedIsBlock,
+//     //   rawIsVerified: query.isVerified,
+//     //   parsedIsVerified,
+//     //   where,
+//     // });
 
-  //     let feedbackRating: { average: number; count: number } | null = null;
-  //     if (user.userType === UserType.MEDECIN) {
-  //       const agg = await this.prisma.feedback.aggregate({
-  //         where: { medecinId: id },
-  //         _avg: { note: true },
-  //         _count: { _all: true },
-  //       });
-  //       feedbackRating = {
-  //         average: agg._avg.note ?? 0,
-  //         count: agg._count._all,
-  //       };
-  //     }
+//     const [items, total] = await this.prisma.$transaction([
+//       this.prisma.user.findMany({
+//         where,
+//         include: {
+//           speciality: true,
+//           plannings: {
+//             take: 1,
+//             orderBy: { createdAt: 'desc' },
+//           },
+//           soldes: {
+//             take: 1,
+//             orderBy: { updatedAt: 'desc' },
+//           },
+//           feedbacksMed: {
+//             take: 3,
+//             orderBy: { createdAt: 'desc' },
+//           },
+//           feedbacksPat: {
+//             take: 3,
+//             orderBy: { createdAt: 'desc' },
+//           },
+//         },
+//         skip,
+//         take: limit,
+//         orderBy: { firstName: 'asc' },
+//       }),
+//       this.prisma.user.count({ where }),
+//     ]);
 
-  //     const {
-  //       password,
-  //       plannings,
-  //       soldes,
-  //       feedbacksMed,
-  //       feedbacksPat,
-  //       reservationsM,
-  //       ordonnancesM,
-  //       abonnementsM,
-  //       videos,
-  //       ...user1
-  //     } = user;
+//     const medecinIds = items
+//       .filter((u) => u.userType === UserType.MEDECIN)
+//       .map((u) => u.userId);
 
-  //     return {
-  //       ...user1,
-  //       planning: plannings?.[0] ?? null,
-  //       solde: soldes?.[0] ?? null,
-  //       feedbackRating,
-  //       lastFeedbacks: user.userType === UserType.MEDECIN ? feedbacksMed : feedbacksPat,
-  //       lastReservations: reservationsM ?? [],
-  //       lastOrdonnances: ordonnancesM ?? [],
-  //       lastAbonnements: abonnementsM ?? [],
-  //       lastVideos: videos ?? [],
-  //     };
-  //   } catch (error) {
-  //     if (error instanceof NotFoundException) throw error;
-  //     throw new BadRequestException({
-  //       message: `Erreur récupération : ${error.message}`,
-  //       messageE: `Error fetching user: ${error.message}`,
-  //     });
-  //   }
-  // }
-// 6. GET ONE USER BY ID AVEC RELATIONS
+//     let ratingMap = new Map<number, { average: number; count: number }>();
 
-// 5. GET ALL USERS AVEC FILTRES & PAGINATION (Version corrigée)
+//     if (medecinIds.length) {
+//       const rows = await this.prisma.feedback.groupBy({
+//         by: ['medecinId'],
+//         where: { medecinId: { in: medecinIds } },
+//         _avg: { note: true },
+//         _count: { _all: true },
+//       });
+
+//       ratingMap = new Map(
+//         rows.map((r) => [
+//           r.medecinId,
+//           {
+//             average: r._avg.note ?? 0,
+//             count: r._count._all,
+//           },
+//         ]),
+//       );
+//     }
+
+//     const items1 = await Promise.all(
+//       items.map(async (user) => {
+//         const feedbacksMedWithPatients = await Promise.all(
+//           user.feedbacksMed.map(async (feedback) => {
+//             const patient = await this.prisma.user.findUnique({
+//               where: { userId: feedback.patientId },
+//               select: {
+//                 userId: true,
+//                 firstName: true,
+//                 lastName: true,
+//                 profile: true,
+//               },
+//             });
+
+//             return {
+//               ...feedback,
+//               patient: patient || null,
+//             };
+//           }),
+//         );
+
+//         const feedbacksPatWithMedecins = await Promise.all(
+//           user.feedbacksPat.map(async (feedback) => {
+//             const medecin = await this.prisma.user.findUnique({
+//               where: { userId: feedback.medecinId },
+//               select: {
+//                 userId: true,
+//                 firstName: true,
+//                 lastName: true,
+//                 profile: true,
+//               },
+//             });
+
+//             return {
+//               ...feedback,
+//               medecin: medecin || null,
+//             };
+//           }),
+//         );
+
+//         const {
+//           password,
+//           plannings,
+//           soldes,
+//           feedbacksMed,
+//           feedbacksPat,
+//           ...safe
+//         } = user;
+
+//         return {
+//           ...safe,
+//           planning: plannings?.[0] ?? null,
+//           solde: soldes?.[0] ?? null,
+//           feedbackRating:
+//             safe.userType === UserType.MEDECIN
+//               ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
+//               : null,
+//           lastFeedbacks:
+//             safe.userType === UserType.MEDECIN
+//               ? feedbacksMedWithPatients
+//               : feedbacksPatWithMedecins,
+//         };
+//       }),
+//     );
+
+//     return {
+//       items1,
+//       meta: {
+//         total,
+//         page,
+//         limit,
+//         lastPage: Math.ceil(total / limit),
+//       },
+//     };
+//   } catch (error) {
+//     if (error instanceof BadRequestException) throw error;
+
+//     const message = error instanceof Error ? error.message : String(error);
+
+//     throw new BadRequestException({
+//       message: `Erreur récupération : ${message}`,
+//       messageE: `Error fetching users: ${message}`,
+//     });
+//   }
+// }
+
+// 5. GET ALL USERS AVEC FILTRES & PAGINATION (Tri par note uniquement si spécialité filtrée)
 async findAll(query: QueryUserDto) {
   try {
     const page: number = query.page != null ? Number(query.page) : 1;
@@ -596,7 +484,8 @@ async findAll(query: QueryUserDto) {
       where.isBlock = parsedIsBlock;
     }
 
-    if (query.specialityId != null) {
+    const hasSpecialityFilter = query.specialityId != null;
+    if (hasSpecialityFilter) {
       where.specialityId = Number(query.specialityId);
     }
 
@@ -605,16 +494,8 @@ async findAll(query: QueryUserDto) {
       where.isVerified = parsedIsVerified;
     }
 
-    // console.log('RAW QUERY DTO =', query);
-    // console.log('PARSED FILTERS =', {
-    //   rawIsBlock: query.isBlock,
-    //   parsedIsBlock,
-    //   rawIsVerified: query.isVerified,
-    //   parsedIsVerified,
-    //   where,
-    // });
-
-    const [items, total] = await this.prisma.$transaction([
+    // Récupérer d'abord tous les utilisateurs (sans pagination pour le calcul des notes si nécessaire)
+    const [allItems, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
         include: {
@@ -636,14 +517,12 @@ async findAll(query: QueryUserDto) {
             orderBy: { createdAt: 'desc' },
           },
         },
-        skip,
-        take: limit,
         orderBy: { firstName: 'asc' },
       }),
       this.prisma.user.count({ where }),
     ]);
 
-    const medecinIds = items
+    const medecinIds = allItems
       .filter((u) => u.userType === UserType.MEDECIN)
       .map((u) => u.userId);
 
@@ -668,8 +547,44 @@ async findAll(query: QueryUserDto) {
       );
     }
 
+    // Ajouter la note à chaque item
+    const itemsWithRatings = allItems.map((user) => {
+      let averageNote = 0;
+      if (user.userType === UserType.MEDECIN) {
+        const rating = ratingMap.get(user.userId);
+        averageNote = rating?.average ?? 0;
+      }
+      return { ...user, averageNote };
+    });
+
+    // Appliquer le tri uniquement si un filtre spécialité est présent
+    let sortedItems = itemsWithRatings;
+    if (hasSpecialityFilter) {
+      // Trier les médecins par note décroissante (les mieux notés en premier)
+      sortedItems = itemsWithRatings.sort((a, b) => {
+        // Si les deux sont médecins, trier par note décroissante
+        if (a.userType === UserType.MEDECIN && b.userType === UserType.MEDECIN) {
+          return b.averageNote - a.averageNote;
+        }
+        // Si a est médecin et b ne l'est pas, a passe devant
+        if (a.userType === UserType.MEDECIN && b.userType !== UserType.MEDECIN) {
+          return -1;
+        }
+        // Si b est médecin et a ne l'est pas, b passe devant
+        if (a.userType !== UserType.MEDECIN && b.userType === UserType.MEDECIN) {
+          return 1;
+        }
+        // Sinon, garder l'ordre alphabétique par prénom
+        return a.firstName.localeCompare(b.firstName);
+      });
+    }
+
+    // Appliquer la pagination après le tri
+    const paginatedItems = sortedItems.slice(skip, skip + limit);
+
+    // Enrichir les items avec les données des feedbacks
     const items1 = await Promise.all(
-      items.map(async (user) => {
+      paginatedItems.map(async (user) => {
         const feedbacksMedWithPatients = await Promise.all(
           user.feedbacksMed.map(async (feedback) => {
             const patient = await this.prisma.user.findUnique({
@@ -714,6 +629,7 @@ async findAll(query: QueryUserDto) {
           soldes,
           feedbacksMed,
           feedbacksPat,
+          averageNote,
           ...safe
         } = user;
 
@@ -721,6 +637,7 @@ async findAll(query: QueryUserDto) {
           ...safe,
           planning: plannings?.[0] ?? null,
           solde: soldes?.[0] ?? null,
+          averageNote: hasSpecialityFilter ? averageNote : undefined, // Ne renvoyer la note que si filtre spécialité
           feedbackRating:
             safe.userType === UserType.MEDECIN
               ? ratingMap.get(safe.userId) ?? { average: 0, count: 0 }
@@ -740,6 +657,7 @@ async findAll(query: QueryUserDto) {
         page,
         limit,
         lastPage: Math.ceil(total / limit),
+        sortedByRating: hasSpecialityFilter, // Indiquer si le tri par note a été appliqué
       },
     };
   } catch (error) {

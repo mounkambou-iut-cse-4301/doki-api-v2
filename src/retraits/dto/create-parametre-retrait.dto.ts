@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateParametreRetraitDto {
   @ApiProperty({
@@ -19,4 +19,13 @@ export class CreateParametreRetraitDto {
   @IsNotEmpty()
   @IsString()
   numeroRetrait: string;
+
+    @ApiProperty({
+    example: 'Paul MEKA',
+    description: 'Nom du titulaire du compte Mobile Money',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  nomRetrait?: string;
 }

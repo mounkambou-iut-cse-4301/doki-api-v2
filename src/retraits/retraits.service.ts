@@ -412,71 +412,72 @@ export class RetraitsService {
     };
   }
 
-  async demanderRetrait(dto: DemanderRetraitDto) {
-    const owner = await this.assertOwner(dto.userId);
+ async demanderRetrait(dto: DemanderRetraitDto) {
+  const owner = await this.assertOwner(dto.userId);
 
-    const parametre = await this.prisma.parametreRetrait.findUnique({
-      where: { userId: dto.userId },
+  const parametre = await this.prisma.parametreRetrait.findUnique({
+    where: { userId: dto.userId },
+  });
+
+  if (!parametre || parametre.statut !== StatutParametreRetrait.VERIFIE) {
+    throw new BadRequestException({
+      message:
+        'Le numéro de retrait doit être paramétré et vérifié avant tout retrait.',
+      messageE:
+        'Withdrawal number must be configured and verified before requesting a withdrawal.',
     });
-
-    if (!parametre || parametre.statut !== StatutParametreRetrait.VERIFIE) {
-      throw new BadRequestException({
-        message:
-          'Le numéro de retrait doit être paramétré et vérifié avant tout retrait.',
-        messageE:
-          'Withdrawal number must be configured and verified before requesting a withdrawal.',
-      });
-    }
-
-    const solde = await this.getDecryptedOwnerBalance(dto.userId);
-    const pendingTotal = await this.getPendingTotal(dto.userId);
-    const disponible = solde - pendingTotal;
-
-    if (dto.montant > disponible) {
-      throw new BadRequestException({
-        message: `Solde insuffisant. Solde disponible pour retrait: ${disponible}`,
-        messageE: `Insufficient balance. Available balance for withdrawal: ${disponible}`,
-      });
-    }
-
-    const otp = this.generateOtpCode();
-    const otpHash = await this.hashOtp(otp);
-    const otpExpiresAt = this.buildOtpExpiresAt(10);
-
-    const retrait = await this.prisma.retrait.create({
-      data: {
-        userId: dto.userId,
-        parametreRetraitId: parametre.parametreRetraitId,
-        montant: dto.montant,
-        statut: StatutRetrait.OTP_EN_ATTENTE,
-        numeroRetraitSnapshot: parametre.numeroRetrait,
-        otpHash,
-        otpExpiresAt,
-      },
-    });
-
-    await this.sendOtpByEmail(
-      owner.email,
-      'Confirmation de votre demande de retrait',
-      otp,
-      'la confirmation de votre demande de retrait',
-    );
-
-    return {
-      message: 'OTP envoyé pour confirmer la demande de retrait',
-      messageE: 'OTP sent to confirm withdrawal request',
-      data: {
-        retraitId: retrait.retraitId,
-        userId: retrait.userId,
-        montant: retrait.montant,
-        statut: retrait.statut,
-        otpExpiresAt: retrait.otpExpiresAt,
-        soldeActuel: solde,
-        totalPending: pendingTotal,
-        disponible,
-      },
-    };
   }
+
+  const solde = await this.getDecryptedOwnerBalance(dto.userId);
+  const pendingTotal = await this.getPendingTotal(dto.userId);
+  const disponible = solde - pendingTotal;
+
+  if (dto.montant > disponible) {
+    throw new BadRequestException({
+      message: `Solde insuffisant. Solde disponible pour retrait: ${disponible}`,
+      messageE: `Insufficient balance. Available balance for withdrawal: ${disponible}`,
+    });
+  }
+
+  const otp = this.generateOtpCode();
+  const otpHash = await this.hashOtp(otp);
+  const otpExpiresAt = this.buildOtpExpiresAt(10);
+
+  const retrait = await this.prisma.retrait.create({
+    data: {
+      userId: dto.userId,
+      parametreRetraitId: parametre.parametreRetraitId,
+      montant: dto.montant,
+      statut: StatutRetrait.OTP_EN_ATTENTE,
+      numeroRetraitSnapshot: parametre.numeroRetrait, // seulement ça
+      otpHash,
+      otpExpiresAt,
+    },
+  });
+
+  await this.sendOtpByEmail(
+    owner.email,
+    'Confirmation de votre demande de retrait',
+    otp,
+    'la confirmation de votre demande de retrait',
+  );
+
+  return {
+    message: 'OTP envoyé pour confirmer la demande de retrait',
+    messageE: 'OTP sent to confirm withdrawal request',
+    data: {
+      retraitId: retrait.retraitId,
+      userId: retrait.userId,
+      montant: retrait.montant,
+      statut: retrait.statut,
+      numeroRetraitSnapshot: retrait.numeroRetraitSnapshot,
+      otpExpiresAt: retrait.otpExpiresAt,
+      soldeActuel: solde,
+      totalPending: pendingTotal,
+      disponible,
+    },
+  };
+}
 
   async verifyRetraitOtp(retraitId: number, dto: VerifyRetraitOtpDto) {
     const retrait = await this.prisma.retrait.findUnique({

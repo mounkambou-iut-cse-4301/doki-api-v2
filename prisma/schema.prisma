@@ -95,6 +95,7 @@ model ParametreRetrait {
   parametreRetraitId Int                    @id @default(autoincrement())
   userId             Int                    @unique
   numeroRetrait      String                 @unique
+  nomRetrait         String?
   statut             StatutParametreRetrait @default(OTP_EN_ATTENTE)
   otpHash            String?
   otpExpiresAt       DateTime?

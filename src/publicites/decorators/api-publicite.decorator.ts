@@ -232,9 +232,9 @@ export function ApiCreatePublicite() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({
-      summary: 'Créer une publicité (ACTEUR: utilisateur qui téléverse)',
+      summary: 'Créer une publicité (ACTEUR: utilisateur qui téléverse: ADMIN, SUPERADMIN ET MEDECN)',
       description:
-        "Cette API crée une publicité à partir d’un package. televerseParId est obligatoire. Il faut toujours préciser dateDebut pour indiquer à partir de quand la publicité doit commencer. dateFin est calculée automatiquement selon la durée du package. Si le téléverseur est admin ou superadmin, le paiement est confirmé immédiatement. Sinon, la transaction est d’abord en attente puis confirmée automatiquement après 10 secondes.",
+        "Cette API crée une publicité à partir d’un package. televerseParId est obligatoire car cest celui qui téléverse et ça peut etre soit l'admin, soit le medecin. annonceurUtilisateurId c'est celui qui a demandé pour faire l'annonce, si c'est le medecin qui est sur la plateforme tu mets son id, au contraire annonceurUtilisateurId ne sra pas mis dans ce input. Il faut toujours préciser dateDebut pour indiquer à partir de quand la publicité doit commencer. dateFin est calculée automatiquement selon la durée du package. Si le téléverseur est admin ou superadmin, le paiement est confirmé immédiatement. Sinon, la transaction est d’abord en attente puis confirmée automatiquement après 10 secondes.",
     }),
     ApiBody({ type: CreatePubliciteDto }),
     ApiResponse({

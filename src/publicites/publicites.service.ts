@@ -764,7 +764,11 @@ export class PublicitesService {
     };
 
     // retrouver lannonceur
-    if(query.annonceurUtilisateurId){
+    if(query.televerseParId){
+      where.televerseParId = query.televerseParId;
+    }
+
+        if(query.annonceurUtilisateurId){
       where.annonceurUtilisateurId = query.annonceurUtilisateurId;
     }
 

@@ -31,6 +31,13 @@ export class PubliciteQueryDto {
   @Min(1)
   annonceurUtilisateurId?: number;
 
+   @ApiPropertyOptional({example:1})
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  televerseParId?: number;
+
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()
   @Type(() => Number)

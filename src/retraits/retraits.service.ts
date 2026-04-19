@@ -101,14 +101,14 @@ export class RetraitsService {
       user.userType === UserType.MEDECIN ||
       user.userType === UserType.HOPITAL;
 
-    if (!isAllowedOwner) {
-      throw new ForbiddenException({
-        message:
-          'Seuls les médecins et les hôpitaux peuvent utiliser le module de retrait.',
-        messageE:
-          'Only doctors and hospitals can use the withdrawal module.',
-      });
-    }
+    // if (!isAllowedOwner) {
+    //   throw new ForbiddenException({
+    //     message:
+    //       'Seuls les médecins et les hôpitaux peuvent utiliser le module de retrait.',
+    //     messageE:
+    //       'Only doctors and hospitals can use the withdrawal module.',
+    //   });
+    // }
 
     return user;
   }

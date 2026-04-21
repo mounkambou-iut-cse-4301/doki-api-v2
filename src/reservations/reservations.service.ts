@@ -661,12 +661,12 @@ export class ReservationsService {
       });
     }
 
-    if (reservation.medecinId !== userId) {
-      throw new ForbiddenException({
-        message: 'Vous n\'êtes pas autorisé à démarrer cette consultation',
-        messageE: 'You are not authorized to start this consultation',
-      });
-    }
+    // if (reservation.medecinId !== userId) {
+    //   throw new ForbiddenException({
+    //     message: 'Vous n\'êtes pas autorisé à démarrer cette consultation',
+    //     messageE: 'You are not authorized to start this consultation',
+    //   });
+    // }
 
     if (reservation.status !== ReservationStatus.PENDING) {
       throw new BadRequestException({
@@ -774,12 +774,12 @@ async completeConsultation(id: number, userId: number) {
     });
   }
 
-  if (reservation.medecinId !== userId) {
-    throw new ForbiddenException({
-      message: "Vous n'êtes pas autorisé à terminer cette consultation",
-      messageE: 'You are not authorized to complete this consultation',
-    });
-  }
+  // if (reservation.medecinId !== userId) {
+  //   throw new ForbiddenException({
+  //     message: "Vous n'êtes pas autorisé à terminer cette consultation",
+  //     messageE: 'You are not authorized to complete this consultation',
+  //   });
+  // }
 
   if (
     reservation.status !== ReservationStatus.STARTED &&

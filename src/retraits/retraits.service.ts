@@ -751,26 +751,26 @@ export class RetraitsService {
       });
     }
 
-    // const actor = await this.prisma.user.findUnique({
-    //   where: { userId: dto.acteurId },
-    //   select: {
-    //     userId: true,
-    //     userType: true,
-    //   },
-    // });
+    const actor = await this.prisma.user.findUnique({
+      where: { userId: dto.acteurId },
+      select: {
+        userId: true,
+        userType: true,
+      },
+    });
 
-    // if (!actor) {
-    //   throw new NotFoundException({
-    //     message: 'Acteur introuvable.',
-    //     messageE: 'Actor not found.',
-    //   });
-    // }
+    if (!actor) {
+      throw new NotFoundException({
+        message: 'Acteur introuvable.',
+        messageE: 'Actor not found.',
+      });
+    }
 
-    // const isAdmin =
-    //   actor.userType === UserType.ADMIN ||
-    //   actor.userType === UserType.SUPERADMIN;
+    const isAdmin =
+      actor.userType === UserType.ADMIN ||
+      actor.userType === UserType.SUPERADMIN;
 
-    // const isOwner = retrait.userId === actor.userId;
+    const isOwner = retrait.userId === actor.userId;
 
     // if (!isAdmin && !isOwner) {
     //   throw new ForbiddenException({
@@ -783,14 +783,14 @@ export class RetraitsService {
       retrait.statut === StatutRetrait.OTP_EN_ATTENTE ||
       retrait.statut === StatutRetrait.PENDING;
 
-    if (!cancellable) {
-      throw new BadRequestException({
-        message:
-          'Seuls les retraits OTP_EN_ATTENTE ou PENDING peuvent être annulés.',
-        messageE:
-          'Only OTP_EN_ATTENTE or PENDING withdrawals can be cancelled.',
-      });
-    }
+    // if (!cancellable) {
+    //   throw new BadRequestException({
+    //     message:
+    //       'Seuls les retraits OTP_EN_ATTENTE ou PENDING peuvent être annulés.',
+    //     messageE:
+    //       'Only OTP_EN_ATTENTE or PENDING withdrawals can be cancelled.',
+    //   });
+    // }
 
     await this.prisma.retrait.update({
       where: { retraitId },

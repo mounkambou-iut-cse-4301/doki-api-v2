@@ -515,9 +515,20 @@ export function ApiCompleteRetrait() {
     }),
     ApiBody({
       schema: {
-        example: {
-          referenceTraitementAdmin: 'TRX-2026-0001',
+        type: 'object',
+        properties: {
+          adminId: { 
+            type: 'number', 
+            example: 1, 
+            description: "ID de l'admin ou superadmin qui traite le retrait" 
+          },
+          referenceTraitementAdmin: { 
+            type: 'string', 
+            example: 'TR-WD-2026-00001', 
+            description: 'Référence de traitement admin' 
+          }
         },
+        required: ['adminId']
       },
     }),
     ApiResponse({
@@ -561,9 +572,20 @@ export function ApiCancelRetrait() {
     }),
     ApiBody({
       schema: {
-        example: {
-          motifAnnulation: 'Erreur sur le montant',
+        type: 'object',
+        properties: {
+          acteurId: { 
+            type: 'number', 
+            example: 7, 
+            description: "ID de l'acteur qui annule (propriétaire du retrait ou admin)" 
+          },
+          motifAnnulation: { 
+            type: 'string', 
+            example: 'Erreur sur le montant', 
+            description: 'Motif de l\'annulation' 
+          }
         },
+        required: ['acteurId']
       },
     }),
     ApiResponse({

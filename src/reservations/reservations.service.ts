@@ -1231,6 +1231,7 @@ async completeConsultation(id: number, userId: number) {
     const where: any = {};
 
     if (query.medecinId) where.medecinId = query.medecinId;
+    if (query.hopitalId) where.hopitalId = query.hopitalId;
     if (query.patientId) where.patientId = query.patientId;
     if (query.date) where.date = query.date;
     if (query.type) where.type = query.type;

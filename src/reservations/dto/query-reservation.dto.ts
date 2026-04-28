@@ -23,6 +23,12 @@ export class QueryReservationDto {
   @IsInt()
   medecinId?: number;
 
+    @ApiPropertyOptional({ description: 'Filtrer par ID hopital' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  hopitalId?: number;
+
   @ApiPropertyOptional({ description: 'Filtrer par ID patient' })
   @IsOptional()
   @Type(() => Number)

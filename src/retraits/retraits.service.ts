@@ -675,6 +675,18 @@ export class RetraitsService {
 
     const retrait = await this.prisma.retrait.findUnique({
       where: { retraitId },
+      select: {
+        retraitId: true,
+        userId: true,
+        montant: true,
+        statut: true,
+        numeroRetraitSnapshot: true,
+        user: {
+          select: {
+            email: true,
+          },
+        },
+      },
     });
 
     if (!retrait) {
@@ -733,6 +745,15 @@ export class RetraitsService {
       });
     });
 
+    //envoie d'email de confirmation de retrait complété
+    const message =
+      `Madame, Monsieur,\n\n` +
+      `Votre retrait d'un montant de ${retrait.montant} FCFA a été complété avec succès.\n\n` +
+        (dto.referenceTraitementAdmin ? `Référence de traitement: ${dto.referenceTraitementAdmin}\n\n` : '') +
+      `Merci de votre confiance.` +
+      `\n\nCordialement,\nL'équipe Dokita.`;
+
+    await this.emailService.sendEmail('Confirmation de retrait complété', message, retrait.user.email);
     return {
       message: 'Retrait complété avec succès et solde mis à jour',
       messageE: 'Withdrawal completed successfully and balance updated',
@@ -742,6 +763,17 @@ export class RetraitsService {
   async cancelRetrait(retraitId: number, dto: CancelRetraitDto) {
     const retrait = await this.prisma.retrait.findUnique({
       where: { retraitId },
+      select: {
+        retraitId: true,
+        userId: true,
+        montant: true,
+        statut: true,
+        numeroRetraitSnapshot: true,
+        user: {
+          select: {
+            email: true,          },
+        },
+      },
     });
 
     if (!retrait) {
@@ -783,14 +815,14 @@ export class RetraitsService {
       retrait.statut === StatutRetrait.OTP_EN_ATTENTE ||
       retrait.statut === StatutRetrait.PENDING;
 
-    // if (!cancellable) {
-    //   throw new BadRequestException({
-    //     message:
-    //       'Seuls les retraits OTP_EN_ATTENTE ou PENDING peuvent être annulés.',
-    //     messageE:
-    //       'Only OTP_EN_ATTENTE or PENDING withdrawals can be cancelled.',
-    //   });
-    // }
+    if (!cancellable) {
+      throw new BadRequestException({
+        message:
+          'Seuls les retraits OTP_EN_ATTENTE ou PENDING peuvent être annulés.',
+        messageE:
+          'Only OTP_EN_ATTENTE or PENDING withdrawals can be cancelled.',
+      });
+    }
 
     await this.prisma.retrait.update({
       where: { retraitId },
@@ -802,6 +834,16 @@ export class RetraitsService {
         otpExpiresAt: null,
       },
     });
+
+    // Envoi d'email de confirmation d'annulation de retrait
+    const message =
+      `Madame, Monsieur,\n\n` +
+      `Votre retrait d'un montant de ${retrait.montant} FCFA a été annulé.\n\n` +
+        (dto.motifAnnulation ? `Motif: ${dto.motifAnnulation}\n\n` : '') +
+      `Merci de votre confiance.`+
+      `\n\nCordialement,\nL'équipe Dokita.`;
+
+    await this.emailService.sendEmail('Confirmation d\'annulation de retrait', message, retrait.user.email);
 
     return {
       message: 'Retrait annulé avec succès',

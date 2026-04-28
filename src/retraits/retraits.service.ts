@@ -751,33 +751,33 @@ export class RetraitsService {
       });
     }
 
-    const actor = await this.prisma.user.findUnique({
-      where: { userId: dto.acteurId },
-      select: {
-        userId: true,
-        userType: true,
-      },
-    });
+    // const actor = await this.prisma.user.findUnique({
+    //   where: { userId: dto.acteurId },
+    //   select: {
+    //     userId: true,
+    //     userType: true,
+    //   },
+    // });
 
-    if (!actor) {
-      throw new NotFoundException({
-        message: 'Acteur introuvable.',
-        messageE: 'Actor not found.',
-      });
-    }
+    // if (!actor) {
+    //   throw new NotFoundException({
+    //     message: 'Acteur introuvable.',
+    //     messageE: 'Actor not found.',
+    //   });
+    // }
 
-    const isAdmin =
-      actor.userType === UserType.ADMIN ||
-      actor.userType === UserType.SUPERADMIN;
+    // const isAdmin =
+    //   actor.userType === UserType.ADMIN ||
+    //   actor.userType === UserType.SUPERADMIN;
 
-    const isOwner = retrait.userId === actor.userId;
+    // const isOwner = retrait.userId === actor.userId;
 
-    if (!isAdmin && !isOwner) {
-      throw new ForbiddenException({
-        message: 'Vous ne pouvez pas annuler ce retrait.',
-        messageE: 'You cannot cancel this withdrawal.',
-      });
-    }
+    // if (!isAdmin && !isOwner) {
+    //   throw new ForbiddenException({
+    //     message: 'Vous ne pouvez pas annuler ce retrait.',
+    //     messageE: 'You cannot cancel this withdrawal.',
+    //   });
+    // }
 
     const cancellable =
       retrait.statut === StatutRetrait.OTP_EN_ATTENTE ||

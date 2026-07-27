@@ -258,96 +258,274 @@ export class AuthService {
   }
 
   /** Demander un OTP par email */
-  async requestReset(dto: RequestResetDto) {
-    try {
-      const user = await this.prisma.user.findFirst({ where: { email: dto.email } });
-      if (!user) {
-        return {
-          message: 'Si un compte existe, un OTP a été envoyé.',
-          messageE: 'If an account exists, an OTP was sent.',
-        };
-      }
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpHash = await bcrypt.hash(otp, 10);
-      const expires = new Date(Date.now() + 10 * 60 * 1000);
+//   async requestReset(dto: RequestResetDto) {
+//     try {
+//       const user = await this.prisma.user.findFirst({ where: { email: dto.email } });
+//       if (!user) {
+//         return {
+//           message: 'Si un compte existe, un OTP a été envoyé.',
+//           messageE: 'If an account exists, an OTP was sent.',
+//         };
+//       }
+//       const otp = Math.floor(100000 + Math.random() * 900000).toString();
+//       const otpHash = await bcrypt.hash(otp, 10);
+//       const expires = new Date(Date.now() + 10 * 60 * 1000);
 
-      await this.prisma.passwordReset.create({
+//       await this.prisma.passwordReset.create({
+//         data: {
+//           userId: user.userId,
+//           email: user.email,
+//           otpHash,
+//           expiresAt: expires,
+//         },
+//       });
+
+//       const subject = 'Réinitialisation du mot de passe / Password reset';
+//       const body = `FR: Votre code OTP est ${otp}. Il expire dans 10 minutes.
+// EN: Your OTP code is ${otp}. It expires in 10 minutes.`;
+//       await this.email.sendEmail(subject, body, user.email);
+
+//       return {
+//         message: 'OTP envoyé par email.',
+//         messageE: 'OTP sent by email.',
+//       };
+//     } catch (error) {
+//       throw new BadRequestException({
+//         message: `Erreur demande OTP : ${error.message}`,
+//         messageE: `OTP request error: ${error.message}`,
+//       });
+//     }
+//   }
+
+  /** Confirmer OTP et réinitialiser le mot de passe */
+  // async confirmReset(dto: ConfirmResetDto) {
+  //   try {
+  //     const reset = await this.prisma.passwordReset.findFirst({
+  //       where: {
+  //         email: dto.email,
+  //         usedAt: null,
+  //         expiresAt: { gt: new Date() },
+  //       },
+  //       orderBy: { createdAt: 'desc' },
+  //     });
+  //     if (!reset) {
+  //       throw new BadRequestException({
+  //         message: 'OTP invalide ou expiré.',
+  //         messageE: 'Invalid or expired OTP.',
+  //       });
+  //     }
+  //     const ok = await bcrypt.compare(dto.otp, reset.otpHash);
+  //     if (!ok) {
+  //       throw new UnauthorizedException({
+  //         message: 'OTP incorrect.',
+  //         messageE: 'Incorrect OTP.',
+  //       });
+  //     }
+  //     const user = await this.prisma.user.findUnique({ where: { userId: reset.userId } });
+  //     if (!user) {
+  //       throw new NotFoundException({
+  //         message: 'Utilisateur introuvable.',
+  //         messageE: 'User not found.',
+  //       });
+  //     }
+  //     const hash = await bcrypt.hash(dto.newPassword, 10);
+  //     await this.prisma.$transaction([
+  //       this.prisma.user.update({ where: { userId: user.userId }, data: { password: hash } }),
+  //       this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
+  //     ]);
+
+  //     return {
+  //       message: 'Mot de passe réinitialisé avec succès.',
+  //       messageE: 'Password reset successfully.',
+  //     };
+  //   } catch (error) {
+  //     if (
+  //       error instanceof BadRequestException ||
+  //       error instanceof UnauthorizedException ||
+  //       error instanceof NotFoundException
+  //     ) throw error;
+  //     throw new BadRequestException({
+  //       message: `Erreur reset mot de passe : ${error.message}`,
+  //       messageE: `Password reset error: ${error.message}`,
+  //     });
+  //   }
+  // }
+
+  /** Demander un OTP par email et type d'utilisateur */
+async requestReset(dto: RequestResetDto) {
+  try {
+    const email = dto.email.trim().toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email_userType: {
+          email,
+          userType: dto.userType,
+        },
+      },
+    });
+
+    if (!user) {
+      return {
+        message: 'Si un compte existe, un OTP a été envoyé.',
+        messageE: 'If an account exists, an OTP was sent.',
+      };
+    }
+
+    const otp = Math.floor(
+      100000 + Math.random() * 900000,
+    ).toString();
+
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    /*
+     * On invalide les anciens OTP du compte précis.
+     * userId distingue automatiquement le patient du médecin.
+     */
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passwordReset.updateMany({
+        where: {
+          userId: user.userId,
+          usedAt: null,
+        },
+        data: {
+          usedAt: new Date(),
+        },
+      });
+
+      await tx.passwordReset.create({
         data: {
           userId: user.userId,
           email: user.email,
           otpHash,
-          expiresAt: expires,
+          expiresAt,
         },
       });
+    });
 
-      const subject = 'Réinitialisation du mot de passe / Password reset';
-      const body = `FR: Votre code OTP est ${otp}. Il expire dans 10 minutes.
+    const subject =
+      'Réinitialisation du mot de passe / Password reset';
+
+    const body = `FR: Votre code OTP est ${otp}. Il expire dans 10 minutes.
 EN: Your OTP code is ${otp}. It expires in 10 minutes.`;
-      await this.email.sendEmail(subject, body, user.email);
 
-      return {
-        message: 'OTP envoyé par email.',
-        messageE: 'OTP sent by email.',
-      };
-    } catch (error) {
-      throw new BadRequestException({
-        message: `Erreur demande OTP : ${error.message}`,
-        messageE: `OTP request error: ${error.message}`,
-      });
-    }
+    await this.email.sendEmail(
+      subject,
+      body,
+      user.email,
+    );
+
+    return {
+      message: 'OTP envoyé par email.',
+      messageE: 'OTP sent by email.',
+    };
+  } catch (error) {
+    throw new BadRequestException({
+      message: `Erreur demande OTP : ${error.message}`,
+      messageE: `OTP request error: ${error.message}`,
+    });
   }
+}
 
-  /** Confirmer OTP et réinitialiser le mot de passe */
-  async confirmReset(dto: ConfirmResetDto) {
-    try {
-      const reset = await this.prisma.passwordReset.findFirst({
-        where: {
-          email: dto.email,
-          usedAt: null,
-          expiresAt: { gt: new Date() },
+/** Confirmer OTP et réinitialiser le mot de passe */
+async confirmReset(dto: ConfirmResetDto) {
+  try {
+    const email = dto.email.trim().toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email_userType: {
+          email,
+          userType: dto.userType,
         },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (!reset) {
-        throw new BadRequestException({
-          message: 'OTP invalide ou expiré.',
-          messageE: 'Invalid or expired OTP.',
-        });
-      }
-      const ok = await bcrypt.compare(dto.otp, reset.otpHash);
-      if (!ok) {
-        throw new UnauthorizedException({
-          message: 'OTP incorrect.',
-          messageE: 'Incorrect OTP.',
-        });
-      }
-      const user = await this.prisma.user.findUnique({ where: { userId: reset.userId } });
-      if (!user) {
-        throw new NotFoundException({
-          message: 'Utilisateur introuvable.',
-          messageE: 'User not found.',
-        });
-      }
-      const hash = await bcrypt.hash(dto.newPassword, 10);
-      await this.prisma.$transaction([
-        this.prisma.user.update({ where: { userId: user.userId }, data: { password: hash } }),
-        this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
-      ]);
+      },
+    });
 
-      return {
-        message: 'Mot de passe réinitialisé avec succès.',
-        messageE: 'Password reset successfully.',
-      };
-    } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof UnauthorizedException ||
-        error instanceof NotFoundException
-      ) throw error;
+    if (!user) {
       throw new BadRequestException({
-        message: `Erreur reset mot de passe : ${error.message}`,
-        messageE: `Password reset error: ${error.message}`,
+        message: 'OTP invalide ou expiré.',
+        messageE: 'Invalid or expired OTP.',
       });
     }
+
+    const reset = await this.prisma.passwordReset.findFirst({
+      where: {
+        userId: user.userId,
+        usedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (!reset) {
+      throw new BadRequestException({
+        message: 'OTP invalide ou expiré.',
+        messageE: 'Invalid or expired OTP.',
+      });
+    }
+
+    const otpIsValid = await bcrypt.compare(
+      dto.otp.trim(),
+      reset.otpHash,
+    );
+
+    if (!otpIsValid) {
+      throw new UnauthorizedException({
+        message: 'OTP incorrect.',
+        messageE: 'Incorrect OTP.',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(
+      dto.newPassword,
+      10,
+    );
+
+    const usedAt = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: {
+          userId: user.userId,
+        },
+        data: {
+          password: passwordHash,
+        },
+      }),
+
+      this.prisma.passwordReset.updateMany({
+        where: {
+          userId: user.userId,
+          usedAt: null,
+        },
+        data: {
+          usedAt,
+        },
+      }),
+    ]);
+
+    return {
+      message: 'Mot de passe réinitialisé avec succès.',
+      messageE: 'Password reset successfully.',
+    };
+  } catch (error) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof UnauthorizedException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
+    throw new BadRequestException({
+      message: `Erreur reset mot de passe : ${error.message}`,
+      messageE: `Password reset error: ${error.message}`,
+    });
   }
+}
 }

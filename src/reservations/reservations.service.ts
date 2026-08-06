@@ -169,206 +169,568 @@ export class ReservationsService {
     return { canComplete: true };
   }
 
+  // async create(dto: CreateReservationDto) {
+  //   const hourForDisplay = toDisplayHour(dto.hour);
+
+  //   const dateTime = new Date(`${dto.date}T${hourForDisplay}:00`);
+  //   if (isNaN(dateTime.getTime())) {
+  //     throw new BadRequestException({
+  //       message: 'Format de date/heure invalide',
+  //       messageE: 'Invalid date/time format',
+  //     });
+  //   }
+
+  //   const now = new Date();
+  //   if (dateTime.getTime() <= now.getTime()) {
+  //     throw new BadRequestException({
+  //       message: 'La date/heure doit être dans le futur',
+  //       messageE: 'Date/time must be in the future',
+  //     });
+  //   }
+
+  //   if (dateTime.getTime() < now.getTime() + 6 * 60 * 60 * 1000) {
+  //     throw new BadRequestException({
+  //       message: 'La réservation doit être faite au moins 6h à l\'avance',
+  //       messageE: 'Reservation must be made at least 6h in advance',
+  //     });
+  //   }
+
+  //   const medecin = await this.prisma.user.findUnique({
+  //     where: { userId: dto.medecinId },
+  //     include: { speciality: true },
+  //   });
+
+  //   if (!medecin || medecin.userType !== UserType.MEDECIN) {
+  //     throw new NotFoundException({
+  //       message: `Médecin d'ID ${dto.medecinId} introuvable`,
+  //       messageE: `Doctor with ID ${dto.medecinId} not found`,
+  //     });
+  //   }
+
+  //   const patient = await this.prisma.user.findUnique({
+  //     where: { userId: dto.patientId },
+  //   });
+
+  //   if (!patient || patient.userType !== UserType.PATIENT) {
+  //     throw new NotFoundException({
+  //       message: `Patient d'ID ${dto.patientId} introuvable`,
+  //       messageE: `Patient with ID ${dto.patientId} not found`,
+  //     });
+  //   }
+
+  //   const speciality = await this.prisma.speciality.findUnique({
+  //     where: { specialityId: dto.specialityId },
+  //   });
+
+  //   if (!speciality) {
+  //     throw new NotFoundException({
+  //       message: `Spécialité ${dto.specialityId} introuvable`,
+  //       messageE: `Speciality ${dto.specialityId} not found`,
+  //     });
+  //   }
+
+  //   if (medecin.specialityId !== dto.specialityId) {
+  //     throw new BadRequestException({
+  //       message: 'La spécialité ne correspond pas au médecin',
+  //       messageE: 'Speciality does not match the doctor',
+  //     });
+  //   }
+
+  //   const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  //   const jour = jours[dateTime.getDay()];
+
+  //   let planning: any = null;
+  //   let duration: number;
+  //   let consultationPrice: number;
+
+  //   if (dto.type === 'CALL') {
+  //     planning = await this.prisma.planning.findFirst({
+  //       where: {
+  //         medecinId: dto.medecinId,
+  //         jour,
+  //         type: PlanningType.ONLINE,
+  //         isActive: true,
+  //         isOff: false,
+  //       },
+  //     });
+
+  //     if (!planning) {
+  //       throw new BadRequestException({
+  //         message: `Aucun créneau de consultation en ligne trouvé pour le ${jour}`,
+  //         messageE: `No online consultation slot found for ${jour}`,
+  //       });
+  //     }
+
+  //     duration = speciality.consultationDuration;
+  //     consultationPrice = Number(speciality.consultationPrice);
+
+  //     const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
+  //     if (!isValid) {
+  //       throw new BadRequestException({
+  //         message: `L'heure ${hourForDisplay} n'est pas un créneau valide. Les créneaux sont espacés de ${duration + PAUSE_MINUTES} minutes.`,
+  //         messageE: `${hourForDisplay} is not a valid slot. Slots are spaced ${duration + PAUSE_MINUTES} minutes apart.`,
+  //         availableSlots: this.generateAvailableSlots(planning, duration),
+  //       });
+  //     }
+  //   } else {
+  //     if (!dto.hopitalId) {
+  //       throw new BadRequestException({
+  //         message: 'L\'ID de l\'hôpital est requis pour une réservation en présentiel',
+  //         messageE: 'Hospital ID is required for in-person reservation',
+  //       });
+  //     }
+
+  //     const hopitalAffiliation = await this.prisma.medecinHopital.findFirst({
+  //       where: {
+  //         medecinId: dto.medecinId,
+  //         hopitalId: dto.hopitalId,
+  //       },
+  //     });
+
+  //     if (!hopitalAffiliation) {
+  //       throw new BadRequestException({
+  //         message: 'Ce médecin n\'exerce pas dans cet hôpital',
+  //         messageE: 'This doctor does not work at this hospital',
+  //       });
+  //     }
+
+  //     planning = await this.prisma.planning.findFirst({
+  //       where: {
+  //         medecinId: dto.medecinId,
+  //         hopitalId: dto.hopitalId,
+  //         jour,
+  //         type: PlanningType.IN_PERSON,
+  //         isActive: true,
+  //         isOff: false,
+  //       },
+  //     });
+
+  //     if (!planning) {
+  //       throw new BadRequestException({
+  //         message: `Aucun créneau de consultation en présentiel trouvé pour le ${jour} dans cet hôpital`,
+  //         messageE: `No in-person consultation slot found for ${jour} at this hospital`,
+  //       });
+  //     }
+
+  //     duration = planning.consultationDuration || speciality.consultationDuration;
+  //     consultationPrice = Number(planning.consultationPrice || speciality.consultationPrice);
+
+  //     const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
+  //     if (!isValid) {
+  //       throw new BadRequestException({
+  //         message: `L'heure ${hourForDisplay} n'est pas un créneau valide. Les créneaux sont espacés de ${duration + PAUSE_MINUTES} minutes.`,
+  //         messageE: `${hourForDisplay} is not a valid slot. Slots are spaced ${duration + PAUSE_MINUTES} minutes apart.`,
+  //         availableSlots: this.generateAvailableSlots(planning, duration),
+  //       });
+  //     }
+  //   }
+
+  //   const startMin = toMinutes(hourForDisplay);
+  //   const endMin = startMin + duration;
+
+  //   const existingReservations = await this.prisma.reservation.findMany({
+  //     where: {
+  //       medecinId: dto.medecinId,
+  //       date: dto.date,
+  //       status: { in: [ReservationStatus.PENDING, ReservationStatus.STARTED, ReservationStatus.COMPLETED] },
+  //     },
+  //   });
+
+  //   for (const r of existingReservations) {
+  //     const rStart = toMinutes(r.hour);
+  //     const rEnd = rStart + duration;
+  //     if (startMin < rEnd && endMin > rStart) {
+  //       throw new BadRequestException({
+  //         message: `Chevauchement avec une autre réservation (${r.hour} - ${addMinutesToHourString(r.hour, duration)})`,
+  //         messageE: `Overlaps another reservation (${r.hour} - ${addMinutesToHourString(r.hour, duration)})`,
+  //       });
+  //     }
+  //   }
+
+  //   if (dto.type === 'CALL') {
+  //     return this.handleCallReservation(
+  //       dto,
+  //       medecin,
+  //       patient,
+  //       speciality,
+  //       duration,
+  //       consultationPrice,
+  //       hourForDisplay,
+  //     );
+  //   } else {
+  //     return this.handleInPersonReservation(
+  //       dto,
+  //       medecin,
+  //       patient,
+  //       speciality,
+  //       duration,
+  //       consultationPrice,
+  //       hourForDisplay,
+  //     );
+  //   }
+  // }
+
   async create(dto: CreateReservationDto) {
-    const hourForDisplay = toDisplayHour(dto.hour);
+  const hourForDisplay = toDisplayHour(dto.hour);
 
-    const dateTime = new Date(`${dto.date}T${hourForDisplay}:00`);
-    if (isNaN(dateTime.getTime())) {
-      throw new BadRequestException({
-        message: 'Format de date/heure invalide',
-        messageE: 'Invalid date/time format',
-      });
-    }
+  // ============================================================
+  // LIMITER LES RÉSERVATIONS À 7 JOURS MAXIMUM
+  // ============================================================
 
-    const now = new Date();
-    if (dateTime.getTime() <= now.getTime()) {
-      throw new BadRequestException({
-        message: 'La date/heure doit être dans le futur',
-        messageE: 'Date/time must be in the future',
-      });
-    }
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dto.date);
 
-    if (dateTime.getTime() < now.getTime() + 6 * 60 * 60 * 1000) {
-      throw new BadRequestException({
-        message: 'La réservation doit être faite au moins 6h à l\'avance',
-        messageE: 'Reservation must be made at least 6h in advance',
-      });
-    }
-
-    const medecin = await this.prisma.user.findUnique({
-      where: { userId: dto.medecinId },
-      include: { speciality: true },
+  if (!dateMatch) {
+    throw new BadRequestException({
+      statusCode: 400,
+      code: 'INVALID_RESERVATION_DATE_FORMAT',
+      message:
+        'Le format de la date est invalide. Le format attendu est YYYY-MM-DD.',
+      messageE:
+        'Invalid date format. Expected format is YYYY-MM-DD.',
     });
+  }
 
-    if (!medecin || medecin.userType !== UserType.MEDECIN) {
-      throw new NotFoundException({
-        message: `Médecin d'ID ${dto.medecinId} introuvable`,
-        messageE: `Doctor with ID ${dto.medecinId} not found`,
-      });
-    }
+  const requestedYear = Number(dateMatch[1]);
+  const requestedMonth = Number(dateMatch[2]);
+  const requestedDay = Number(dateMatch[3]);
 
-    const patient = await this.prisma.user.findUnique({
-      where: { userId: dto.patientId },
+  const requestedDate = new Date(
+    Date.UTC(
+      requestedYear,
+      requestedMonth - 1,
+      requestedDay,
+      0,
+      0,
+      0,
+    ),
+  );
+
+  const isValidRequestedDate =
+    requestedDate.getUTCFullYear() === requestedYear &&
+    requestedDate.getUTCMonth() === requestedMonth - 1 &&
+    requestedDate.getUTCDate() === requestedDay;
+
+  if (!isValidRequestedDate) {
+    throw new BadRequestException({
+      statusCode: 400,
+      code: 'INVALID_RESERVATION_DATE',
+      message: `La date "${dto.date}" n'est pas valide.`,
+      messageE: `The date "${dto.date}" is invalid.`,
     });
+  }
 
-    if (!patient || patient.userType !== UserType.PATIENT) {
-      throw new NotFoundException({
-        message: `Patient d'ID ${dto.patientId} introuvable`,
-        messageE: `Patient with ID ${dto.patientId} not found`,
-      });
-    }
+  const today = dateAtLocalMidnight('Africa/Douala');
 
-    const speciality = await this.prisma.speciality.findUnique({
-      where: { specialityId: dto.specialityId },
+  const maximumReservationDate = new Date(today);
+  maximumReservationDate.setUTCDate(
+    maximumReservationDate.getUTCDate() + 7,
+  );
+
+  if (requestedDate.getTime() > maximumReservationDate.getTime()) {
+    const maximumDateString =
+      maximumReservationDate.toISOString().split('T')[0];
+
+    throw new BadRequestException({
+      statusCode: 400,
+      code: 'RESERVATION_DATE_TOO_FAR',
+      message:
+        `Vous ne pouvez pas effectuer une réservation plus de 7 jours à l'avance. ` +
+        `La dernière date autorisée est le ${maximumDateString} inclus.`,
+      messageE:
+        `You cannot make a reservation more than 7 days in advance. ` +
+        `The latest allowed date is ${maximumDateString}, inclusive.`,
+      maximumDate: maximumDateString,
+      requestedDate: dto.date,
     });
+  }
 
-    if (!speciality) {
-      throw new NotFoundException({
-        message: `Spécialité ${dto.specialityId} introuvable`,
-        messageE: `Speciality ${dto.specialityId} not found`,
-      });
-    }
+  const dateTime = new Date(`${dto.date}T${hourForDisplay}:00`);
 
-    if (medecin.specialityId !== dto.specialityId) {
-      throw new BadRequestException({
-        message: 'La spécialité ne correspond pas au médecin',
-        messageE: 'Speciality does not match the doctor',
-      });
-    }
+  if (isNaN(dateTime.getTime())) {
+    throw new BadRequestException({
+      message: 'Format de date/heure invalide',
+      messageE: 'Invalid date/time format',
+    });
+  }
 
-    const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-    const jour = jours[dateTime.getDay()];
+  const now = new Date();
 
-    let planning: any = null;
-    let duration: number;
-    let consultationPrice: number;
+  if (dateTime.getTime() <= now.getTime()) {
+    throw new BadRequestException({
+      message: 'La date/heure doit être dans le futur',
+      messageE: 'Date/time must be in the future',
+    });
+  }
 
-    if (dto.type === 'CALL') {
-      planning = await this.prisma.planning.findFirst({
-        where: {
-          medecinId: dto.medecinId,
-          jour,
-          type: PlanningType.ONLINE,
-          isActive: true,
-          isOff: false,
-        },
-      });
+  if (
+    dateTime.getTime() <
+    now.getTime() + 6 * 60 * 60 * 1000
+  ) {
+    throw new BadRequestException({
+      message:
+        "La réservation doit être faite au moins 6h à l'avance",
+      messageE:
+        'Reservation must be made at least 6h in advance',
+    });
+  }
 
-      if (!planning) {
-        throw new BadRequestException({
-          message: `Aucun créneau de consultation en ligne trouvé pour le ${jour}`,
-          messageE: `No online consultation slot found for ${jour}`,
-        });
-      }
+  const medecin = await this.prisma.user.findUnique({
+    where: {
+      userId: dto.medecinId,
+    },
+    include: {
+      speciality: true,
+    },
+  });
 
-      duration = speciality.consultationDuration;
-      consultationPrice = Number(speciality.consultationPrice);
+  if (!medecin || medecin.userType !== UserType.MEDECIN) {
+    throw new NotFoundException({
+      message: `Médecin d'ID ${dto.medecinId} introuvable`,
+      messageE: `Doctor with ID ${dto.medecinId} not found`,
+    });
+  }
 
-      const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
-      if (!isValid) {
-        throw new BadRequestException({
-          message: `L'heure ${hourForDisplay} n'est pas un créneau valide. Les créneaux sont espacés de ${duration + PAUSE_MINUTES} minutes.`,
-          messageE: `${hourForDisplay} is not a valid slot. Slots are spaced ${duration + PAUSE_MINUTES} minutes apart.`,
-          availableSlots: this.generateAvailableSlots(planning, duration),
-        });
-      }
-    } else {
-      if (!dto.hopitalId) {
-        throw new BadRequestException({
-          message: 'L\'ID de l\'hôpital est requis pour une réservation en présentiel',
-          messageE: 'Hospital ID is required for in-person reservation',
-        });
-      }
+  const patient = await this.prisma.user.findUnique({
+    where: {
+      userId: dto.patientId,
+    },
+  });
 
-      const hopitalAffiliation = await this.prisma.medecinHopital.findFirst({
-        where: {
-          medecinId: dto.medecinId,
-          hopitalId: dto.hopitalId,
-        },
-      });
+  if (!patient || patient.userType !== UserType.PATIENT) {
+    throw new NotFoundException({
+      message: `Patient d'ID ${dto.patientId} introuvable`,
+      messageE: `Patient with ID ${dto.patientId} not found`,
+    });
+  }
 
-      if (!hopitalAffiliation) {
-        throw new BadRequestException({
-          message: 'Ce médecin n\'exerce pas dans cet hôpital',
-          messageE: 'This doctor does not work at this hospital',
-        });
-      }
+  const speciality = await this.prisma.speciality.findUnique({
+    where: {
+      specialityId: dto.specialityId,
+    },
+  });
 
-      planning = await this.prisma.planning.findFirst({
-        where: {
-          medecinId: dto.medecinId,
-          hopitalId: dto.hopitalId,
-          jour,
-          type: PlanningType.IN_PERSON,
-          isActive: true,
-          isOff: false,
-        },
-      });
+  if (!speciality) {
+    throw new NotFoundException({
+      message: `Spécialité ${dto.specialityId} introuvable`,
+      messageE: `Speciality ${dto.specialityId} not found`,
+    });
+  }
 
-      if (!planning) {
-        throw new BadRequestException({
-          message: `Aucun créneau de consultation en présentiel trouvé pour le ${jour} dans cet hôpital`,
-          messageE: `No in-person consultation slot found for ${jour} at this hospital`,
-        });
-      }
+  if (medecin.specialityId !== dto.specialityId) {
+    throw new BadRequestException({
+      message: 'La spécialité ne correspond pas au médecin',
+      messageE: 'Speciality does not match the doctor',
+    });
+  }
 
-      duration = planning.consultationDuration || speciality.consultationDuration;
-      consultationPrice = Number(planning.consultationPrice || speciality.consultationPrice);
+  const jours = [
+    'dimanche',
+    'lundi',
+    'mardi',
+    'mercredi',
+    'jeudi',
+    'vendredi',
+    'samedi',
+  ];
 
-      const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
-      if (!isValid) {
-        throw new BadRequestException({
-          message: `L'heure ${hourForDisplay} n'est pas un créneau valide. Les créneaux sont espacés de ${duration + PAUSE_MINUTES} minutes.`,
-          messageE: `${hourForDisplay} is not a valid slot. Slots are spaced ${duration + PAUSE_MINUTES} minutes apart.`,
-          availableSlots: this.generateAvailableSlots(planning, duration),
-        });
-      }
-    }
+  const jour = jours[dateTime.getDay()];
 
-    const startMin = toMinutes(hourForDisplay);
-    const endMin = startMin + duration;
+  let planning: any = null;
+  let duration: number;
+  let consultationPrice: number;
 
-    const existingReservations = await this.prisma.reservation.findMany({
+  if (dto.type === 'CALL') {
+    planning = await this.prisma.planning.findFirst({
       where: {
         medecinId: dto.medecinId,
-        date: dto.date,
-        status: { in: [ReservationStatus.PENDING, ReservationStatus.STARTED, ReservationStatus.COMPLETED] },
+        jour,
+        type: PlanningType.ONLINE,
+        isActive: true,
+        isOff: false,
       },
     });
 
-    for (const r of existingReservations) {
-      const rStart = toMinutes(r.hour);
-      const rEnd = rStart + duration;
-      if (startMin < rEnd && endMin > rStart) {
-        throw new BadRequestException({
-          message: `Chevauchement avec une autre réservation (${r.hour} - ${addMinutesToHourString(r.hour, duration)})`,
-          messageE: `Overlaps another reservation (${r.hour} - ${addMinutesToHourString(r.hour, duration)})`,
-        });
-      }
+    if (!planning) {
+      throw new BadRequestException({
+        message:
+          `Aucun créneau de consultation en ligne trouvé pour le ${jour}`,
+        messageE:
+          `No online consultation slot found for ${jour}`,
+      });
     }
 
-    if (dto.type === 'CALL') {
-      return this.handleCallReservation(
-        dto,
-        medecin,
-        patient,
-        speciality,
-        duration,
-        consultationPrice,
-        hourForDisplay,
-      );
-    } else {
-      return this.handleInPersonReservation(
-        dto,
-        medecin,
-        patient,
-        speciality,
-        duration,
-        consultationPrice,
-        hourForDisplay,
-      );
+    duration = speciality.consultationDuration;
+    consultationPrice = Number(
+      speciality.consultationPrice,
+    );
+
+    const isValid = this.isValidSlotInPlanning(
+      planning,
+      hourForDisplay,
+      duration,
+    );
+
+    if (!isValid) {
+      throw new BadRequestException({
+        message:
+          `L'heure ${hourForDisplay} n'est pas un créneau valide. ` +
+          `Les créneaux sont espacés de ${duration + PAUSE_MINUTES} minutes.`,
+        messageE:
+          `${hourForDisplay} is not a valid slot. ` +
+          `Slots are spaced ${duration + PAUSE_MINUTES} minutes apart.`,
+        availableSlots: this.generateAvailableSlots(
+          planning,
+          duration,
+        ),
+      });
+    }
+  } else {
+    if (!dto.hopitalId) {
+      throw new BadRequestException({
+        message:
+          "L'ID de l'hôpital est requis pour une réservation en présentiel",
+        messageE:
+          'Hospital ID is required for in-person reservation',
+      });
+    }
+
+    const hopitalAffiliation =
+      await this.prisma.medecinHopital.findFirst({
+        where: {
+          medecinId: dto.medecinId,
+          hopitalId: dto.hopitalId,
+        },
+      });
+
+    if (!hopitalAffiliation) {
+      throw new BadRequestException({
+        message:
+          "Ce médecin n'exerce pas dans cet hôpital",
+        messageE:
+          'This doctor does not work at this hospital',
+      });
+    }
+
+    planning = await this.prisma.planning.findFirst({
+      where: {
+        medecinId: dto.medecinId,
+        hopitalId: dto.hopitalId,
+        jour,
+        type: PlanningType.IN_PERSON,
+        isActive: true,
+        isOff: false,
+      },
+    });
+
+    if (!planning) {
+      throw new BadRequestException({
+        message:
+          `Aucun créneau de consultation en présentiel trouvé ` +
+          `pour le ${jour} dans cet hôpital`,
+        messageE:
+          `No in-person consultation slot found for ${jour} ` +
+          `at this hospital`,
+      });
+    }
+
+    duration =
+      planning.consultationDuration ||
+      speciality.consultationDuration;
+
+    consultationPrice = Number(
+      planning.consultationPrice ||
+      speciality.consultationPrice,
+    );
+
+    const isValid = this.isValidSlotInPlanning(
+      planning,
+      hourForDisplay,
+      duration,
+    );
+
+    if (!isValid) {
+      throw new BadRequestException({
+        message:
+          `L'heure ${hourForDisplay} n'est pas un créneau valide. ` +
+          `Les créneaux sont espacés de ${duration + PAUSE_MINUTES} minutes.`,
+        messageE:
+          `${hourForDisplay} is not a valid slot. ` +
+          `Slots are spaced ${duration + PAUSE_MINUTES} minutes apart.`,
+        availableSlots: this.generateAvailableSlots(
+          planning,
+          duration,
+        ),
+      });
     }
   }
+
+  const startMin = toMinutes(hourForDisplay);
+  const endMin = startMin + duration;
+
+  const existingReservations =
+    await this.prisma.reservation.findMany({
+      where: {
+        medecinId: dto.medecinId,
+        date: dto.date,
+        status: {
+          in: [
+            ReservationStatus.PENDING,
+            ReservationStatus.STARTED,
+            ReservationStatus.COMPLETED,
+          ],
+        },
+      },
+    });
+
+  for (const reservation of existingReservations) {
+    const reservationStart = toMinutes(reservation.hour);
+    const reservationEnd = reservationStart + duration;
+
+    if (
+      startMin < reservationEnd &&
+      endMin > reservationStart
+    ) {
+      throw new BadRequestException({
+        message:
+          `Chevauchement avec une autre réservation ` +
+          `(${reservation.hour} - ${addMinutesToHourString(
+            reservation.hour,
+            duration,
+          )})`,
+        messageE:
+          `Overlaps another reservation ` +
+          `(${reservation.hour} - ${addMinutesToHourString(
+            reservation.hour,
+            duration,
+          )})`,
+      });
+    }
+  }
+
+  if (dto.type === 'CALL') {
+    return this.handleCallReservation(
+      dto,
+      medecin,
+      patient,
+      speciality,
+      duration,
+      consultationPrice,
+      hourForDisplay,
+    );
+  }
+
+  return this.handleInPersonReservation(
+    dto,
+    medecin,
+    patient,
+    speciality,
+    duration,
+    consultationPrice,
+    hourForDisplay,
+  );
+}
+
+
 
   private async handleCallReservation(
     dto: CreateReservationDto,
@@ -936,197 +1298,562 @@ async completeConsultation(id: number, userId: number) {
   };
 }
 
-  async updateDate(id: number, dto: UpdateReservationDateDto) {
-    const hourForDisplay = toDisplayHour(dto.hour);
+  // async updateDate(id: number, dto: UpdateReservationDateDto) {
+  //   const hourForDisplay = toDisplayHour(dto.hour);
 
-    const existing = await this.prisma.reservation.findUnique({
-      where: { reservationId: id },
+  //   const existing = await this.prisma.reservation.findUnique({
+  //     where: { reservationId: id },
+  //     include: {
+  //       medecin: { include: { speciality: true } },
+  //       hopital: true,
+  //       patient: true,
+  //     },
+  //   });
+
+  //   if (!existing) {
+  //     throw new NotFoundException({
+  //       message: `Réservation ${id} introuvable`,
+  //       messageE: `Reservation ${id} not found`,
+  //     });
+  //   }
+
+  //   if (existing.status !== ReservationStatus.PENDING) {
+  //     throw new BadRequestException({
+  //       message: `Impossible de modifier une réservation ${existing.status}`,
+  //       messageE: `Cannot modify a ${existing.status} reservation`,
+  //     });
+  //   }
+
+  //   const newDateTime = new Date(`${dto.date}T${hourForDisplay}:00`);
+  //   const now = new Date();
+
+  //   if (isNaN(newDateTime.getTime()) || newDateTime <= now) {
+  //     throw new BadRequestException({
+  //       message: 'La date/heure doit être valide et future',
+  //       messageE: 'Date/time must be valid and in the future',
+  //     });
+  //   }
+
+  //   if (newDateTime.getTime() < now.getTime() + 24 * 60 * 60 * 1000) {
+  //     throw new BadRequestException({
+  //       message: 'La modification doit être faite au moins 24h à l\'avance',
+  //       messageE: 'Modification must be made at least 24h in advance',
+  //     });
+  //   }
+
+  //   const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  //   const jour = jours[newDateTime.getDay()];
+
+  //   let planning: any = null;
+  //   let duration: number;
+
+  //   if (existing.type === 'CALL') {
+  //     planning = await this.prisma.planning.findFirst({
+  //       where: {
+  //         medecinId: existing.medecinId,
+  //         jour,
+  //         type: PlanningType.ONLINE,
+  //         isActive: true,
+  //         isOff: false,
+  //       },
+  //     });
+
+  //     if (!planning) {
+  //       throw new BadRequestException({
+  //         message: `Aucun créneau de consultation en ligne trouvé pour le ${jour}`,
+  //         messageE: `No online consultation slot found for ${jour}`,
+  //       });
+  //     }
+
+  //     duration = existing.medecin.speciality?.consultationDuration || 0;
+
+  //     const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
+  //     if (!isValid) {
+  //       throw new BadRequestException({
+  //         message: `L'heure ${hourForDisplay} n'est pas un créneau valide`,
+  //         messageE: `${hourForDisplay} is not a valid slot`,
+  //       });
+  //     }
+  //   } else {
+  //     planning = await this.prisma.planning.findFirst({
+  //       where: {
+  //         medecinId: existing.medecinId,
+  //         hopitalId: existing.hopitalId,
+  //         jour,
+  //         type: PlanningType.IN_PERSON,
+  //         isActive: true,
+  //         isOff: false,
+  //       },
+  //     });
+
+  //     if (!planning) {
+  //       throw new BadRequestException({
+  //         message: `Aucun créneau de consultation en présentiel trouvé pour le ${jour}`,
+  //         messageE: `No in-person consultation slot found for ${jour}`,
+  //       });
+  //     }
+
+  //     duration = planning.consultationDuration || existing.medecin.speciality?.consultationDuration || 0;
+
+  //     const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
+  //     if (!isValid) {
+  //       throw new BadRequestException({
+  //         message: `L'heure ${hourForDisplay} n'est pas un créneau valide`,
+  //         messageE: `${hourForDisplay} is not a valid slot`,
+  //       });
+  //     }
+  //   }
+
+  //   const startMin = toMinutes(hourForDisplay);
+  //   const endMin = startMin + (duration || 0);
+
+  //   const others = await this.prisma.reservation.findMany({
+  //     where: {
+  //       medecinId: existing.medecinId,
+  //       date: dto.date,
+  //       reservationId: { not: id },
+  //       status: { in: [ReservationStatus.PENDING, ReservationStatus.STARTED, ReservationStatus.COMPLETED] },
+  //     },
+  //   });
+
+  //   for (const r of others) {
+  //     const rStart = toMinutes(r.hour);
+  //     const rEnd = rStart + (duration || 0);
+  //     if (startMin < rEnd && endMin > rStart) {
+  //       throw new BadRequestException({
+  //         message: 'Chevauchement avec une autre réservation',
+  //         messageE: 'Overlaps another reservation',
+  //       });
+  //     }
+  //   }
+
+  //   const reservation = await this.prisma.reservation.update({
+  //     where: { reservationId: id },
+  //     data: { date: dto.date, hour: hourForDisplay },
+  //   });
+
+  //   const titlePatientFr = 'Réservation modifiée';
+  //   const titlePatientEn = 'Reservation updated';
+  //   const msgPatientFr = `Votre réservation a été reprogrammée au ${dto.date} à ${hourForDisplay}.`;
+  //   const msgPatientEn = `Your reservation has been rescheduled to ${dto.date} at ${hourForDisplay}.`;
+
+  //   const titleDoctorFr = 'Réservation reprogrammée';
+  //   const titleDoctorEn = 'Reservation rescheduled';
+  //   const msgDoctorFr = `La réservation de ${existing.patient?.firstName || 'un patient'} ${existing.patient?.lastName || ''} a été déplacée au ${dto.date} à ${hourForDisplay}.`;
+  //   const msgDoctorEn = `The reservation of ${existing.patient?.firstName || 'a patient'} ${existing.patient?.lastName || ''} has been moved to ${dto.date} at ${hourForDisplay}.`;
+
+  //   void this.createNotification(
+  //     existing.patientId,
+  //     titlePatientFr,
+  //     titlePatientEn,
+  //     msgPatientFr,
+  //     msgPatientEn,
+  //   ).catch(() => void 0);
+
+  //   void this.createNotification(
+  //     existing.medecinId,
+  //     titleDoctorFr,
+  //     titleDoctorEn,
+  //     msgDoctorFr,
+  //     msgDoctorEn,
+  //   ).catch(() => void 0);
+
+  //   void this.pushIfPossible(
+  //     existing.patient?.expotoken,
+  //     titlePatientFr,
+  //     titlePatientEn,
+  //     msgPatientFr,
+  //     msgPatientEn,
+  //     {
+  //       kind: 'RESERVATION_RESCHEDULED',
+  //       reservationId: reservation.reservationId,
+  //     },
+  //   ).catch(() => void 0);
+
+  //   void this.pushIfPossible(
+  //     existing.medecin?.expotoken,
+  //     titleDoctorFr,
+  //     titleDoctorEn,
+  //     msgDoctorFr,
+  //     msgDoctorEn,
+  //     {
+  //       kind: 'RESERVATION_RESCHEDULED_DOCTOR',
+  //       reservationId: reservation.reservationId,
+  //     },
+  //   ).catch(() => void 0);
+
+  //   return {
+  //     success: true,
+  //     message: 'Date modifiée avec succès',
+  //     messageE: 'Date updated successfully',
+  //     reservation,
+  //   };
+  // }
+
+  async updateDate(
+  id: number,
+  dto: UpdateReservationDateDto,
+) {
+  const hourForDisplay = toDisplayHour(dto.hour);
+
+  const existing =
+    await this.prisma.reservation.findUnique({
+      where: {
+        reservationId: id,
+      },
       include: {
-        medecin: { include: { speciality: true } },
+        medecin: {
+          include: {
+            speciality: true,
+          },
+        },
         hopital: true,
         patient: true,
       },
     });
 
-    if (!existing) {
-      throw new NotFoundException({
-        message: `Réservation ${id} introuvable`,
-        messageE: `Reservation ${id} not found`,
-      });
-    }
+  if (!existing) {
+    throw new NotFoundException({
+      message: `Réservation ${id} introuvable`,
+      messageE: `Reservation ${id} not found`,
+    });
+  }
 
-    if (existing.status !== ReservationStatus.PENDING) {
+  if (existing.status !== ReservationStatus.PENDING) {
+    throw new BadRequestException({
+      message:
+        `Impossible de modifier une réservation ${existing.status}`,
+      messageE:
+        `Cannot modify a ${existing.status} reservation`,
+    });
+  }
+
+  // ============================================================
+  // LIMITER LA NOUVELLE DATE À 7 JOURS MAXIMUM
+  // ============================================================
+
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dto.date);
+
+  if (!dateMatch) {
+    throw new BadRequestException({
+      statusCode: 400,
+      code: 'INVALID_RESERVATION_DATE_FORMAT',
+      message:
+        'Le format de la date est invalide. Le format attendu est YYYY-MM-DD.',
+      messageE:
+        'Invalid date format. Expected format is YYYY-MM-DD.',
+    });
+  }
+
+  const requestedYear = Number(dateMatch[1]);
+  const requestedMonth = Number(dateMatch[2]);
+  const requestedDay = Number(dateMatch[3]);
+
+  const requestedDate = new Date(
+    Date.UTC(
+      requestedYear,
+      requestedMonth - 1,
+      requestedDay,
+      0,
+      0,
+      0,
+    ),
+  );
+
+  const isValidRequestedDate =
+    requestedDate.getUTCFullYear() === requestedYear &&
+    requestedDate.getUTCMonth() === requestedMonth - 1 &&
+    requestedDate.getUTCDate() === requestedDay;
+
+  if (!isValidRequestedDate) {
+    throw new BadRequestException({
+      statusCode: 400,
+      code: 'INVALID_RESERVATION_DATE',
+      message: `La date "${dto.date}" n'est pas valide.`,
+      messageE: `The date "${dto.date}" is invalid.`,
+    });
+  }
+
+  const today = dateAtLocalMidnight('Africa/Douala');
+
+  const maximumReservationDate = new Date(today);
+  maximumReservationDate.setUTCDate(
+    maximumReservationDate.getUTCDate() + 7,
+  );
+
+  if (requestedDate.getTime() > maximumReservationDate.getTime()) {
+    const maximumDateString =
+      maximumReservationDate.toISOString().split('T')[0];
+
+    throw new BadRequestException({
+      statusCode: 400,
+      code: 'RESERVATION_DATE_TOO_FAR',
+      message:
+        `Vous ne pouvez pas déplacer une réservation à plus de 7 jours. ` +
+        `La dernière date autorisée est le ${maximumDateString} inclus.`,
+      messageE:
+        `You cannot move a reservation more than 7 days ahead. ` +
+        `The latest allowed date is ${maximumDateString}, inclusive.`,
+      maximumDate: maximumDateString,
+      requestedDate: dto.date,
+    });
+  }
+
+  const newDateTime = new Date(
+    `${dto.date}T${hourForDisplay}:00`,
+  );
+
+  const now = new Date();
+
+  if (
+    isNaN(newDateTime.getTime()) ||
+    newDateTime <= now
+  ) {
+    throw new BadRequestException({
+      message:
+        'La date/heure doit être valide et future',
+      messageE:
+        'Date/time must be valid and in the future',
+    });
+  }
+
+  if (
+    newDateTime.getTime() <
+    now.getTime() + 24 * 60 * 60 * 1000
+  ) {
+    throw new BadRequestException({
+      message:
+        "La modification doit être faite au moins 24h à l'avance",
+      messageE:
+        'Modification must be made at least 24h in advance',
+    });
+  }
+
+  const jours = [
+    'dimanche',
+    'lundi',
+    'mardi',
+    'mercredi',
+    'jeudi',
+    'vendredi',
+    'samedi',
+  ];
+
+  const jour = jours[newDateTime.getDay()];
+
+  let planning: any = null;
+  let duration: number;
+
+  if (existing.type === 'CALL') {
+    planning = await this.prisma.planning.findFirst({
+      where: {
+        medecinId: existing.medecinId,
+        jour,
+        type: PlanningType.ONLINE,
+        isActive: true,
+        isOff: false,
+      },
+    });
+
+    if (!planning) {
       throw new BadRequestException({
-        message: `Impossible de modifier une réservation ${existing.status}`,
-        messageE: `Cannot modify a ${existing.status} reservation`,
+        message:
+          `Aucun créneau de consultation en ligne trouvé pour le ${jour}`,
+        messageE:
+          `No online consultation slot found for ${jour}`,
       });
     }
 
-    const newDateTime = new Date(`${dto.date}T${hourForDisplay}:00`);
-    const now = new Date();
+    duration =
+      existing.medecin.speciality?.consultationDuration ||
+      0;
 
-    if (isNaN(newDateTime.getTime()) || newDateTime <= now) {
+    const isValid = this.isValidSlotInPlanning(
+      planning,
+      hourForDisplay,
+      duration,
+    );
+
+    if (!isValid) {
       throw new BadRequestException({
-        message: 'La date/heure doit être valide et future',
-        messageE: 'Date/time must be valid and in the future',
+        message:
+          `L'heure ${hourForDisplay} n'est pas un créneau valide`,
+        messageE:
+          `${hourForDisplay} is not a valid slot`,
+        availableSlots: this.generateAvailableSlots(
+          planning,
+          duration,
+        ),
       });
     }
+  } else {
+    planning = await this.prisma.planning.findFirst({
+      where: {
+        medecinId: existing.medecinId,
+        hopitalId: existing.hopitalId,
+        jour,
+        type: PlanningType.IN_PERSON,
+        isActive: true,
+        isOff: false,
+      },
+    });
 
-    if (newDateTime.getTime() < now.getTime() + 24 * 60 * 60 * 1000) {
+    if (!planning) {
       throw new BadRequestException({
-        message: 'La modification doit être faite au moins 24h à l\'avance',
-        messageE: 'Modification must be made at least 24h in advance',
+        message:
+          `Aucun créneau de consultation en présentiel trouvé pour le ${jour}`,
+        messageE:
+          `No in-person consultation slot found for ${jour}`,
       });
     }
 
-    const jours = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-    const jour = jours[newDateTime.getDay()];
+    duration =
+      planning.consultationDuration ||
+      existing.medecin.speciality?.consultationDuration ||
+      0;
 
-    let planning: any = null;
-    let duration: number;
+    const isValid = this.isValidSlotInPlanning(
+      planning,
+      hourForDisplay,
+      duration,
+    );
 
-    if (existing.type === 'CALL') {
-      planning = await this.prisma.planning.findFirst({
-        where: {
-          medecinId: existing.medecinId,
-          jour,
-          type: PlanningType.ONLINE,
-          isActive: true,
-          isOff: false,
-        },
+    if (!isValid) {
+      throw new BadRequestException({
+        message:
+          `L'heure ${hourForDisplay} n'est pas un créneau valide`,
+        messageE:
+          `${hourForDisplay} is not a valid slot`,
+        availableSlots: this.generateAvailableSlots(
+          planning,
+          duration,
+        ),
       });
-
-      if (!planning) {
-        throw new BadRequestException({
-          message: `Aucun créneau de consultation en ligne trouvé pour le ${jour}`,
-          messageE: `No online consultation slot found for ${jour}`,
-        });
-      }
-
-      duration = existing.medecin.speciality?.consultationDuration || 0;
-
-      const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
-      if (!isValid) {
-        throw new BadRequestException({
-          message: `L'heure ${hourForDisplay} n'est pas un créneau valide`,
-          messageE: `${hourForDisplay} is not a valid slot`,
-        });
-      }
-    } else {
-      planning = await this.prisma.planning.findFirst({
-        where: {
-          medecinId: existing.medecinId,
-          hopitalId: existing.hopitalId,
-          jour,
-          type: PlanningType.IN_PERSON,
-          isActive: true,
-          isOff: false,
-        },
-      });
-
-      if (!planning) {
-        throw new BadRequestException({
-          message: `Aucun créneau de consultation en présentiel trouvé pour le ${jour}`,
-          messageE: `No in-person consultation slot found for ${jour}`,
-        });
-      }
-
-      duration = planning.consultationDuration || existing.medecin.speciality?.consultationDuration || 0;
-
-      const isValid = this.isValidSlotInPlanning(planning, hourForDisplay, duration);
-      if (!isValid) {
-        throw new BadRequestException({
-          message: `L'heure ${hourForDisplay} n'est pas un créneau valide`,
-          messageE: `${hourForDisplay} is not a valid slot`,
-        });
-      }
     }
+  }
 
-    const startMin = toMinutes(hourForDisplay);
-    const endMin = startMin + (duration || 0);
+  const startMin = toMinutes(hourForDisplay);
+  const endMin = startMin + duration;
 
-    const others = await this.prisma.reservation.findMany({
+  const otherReservations =
+    await this.prisma.reservation.findMany({
       where: {
         medecinId: existing.medecinId,
         date: dto.date,
-        reservationId: { not: id },
-        status: { in: [ReservationStatus.PENDING, ReservationStatus.STARTED, ReservationStatus.COMPLETED] },
+        reservationId: {
+          not: id,
+        },
+        status: {
+          in: [
+            ReservationStatus.PENDING,
+            ReservationStatus.STARTED,
+            ReservationStatus.COMPLETED,
+          ],
+        },
       },
     });
 
-    for (const r of others) {
-      const rStart = toMinutes(r.hour);
-      const rEnd = rStart + (duration || 0);
-      if (startMin < rEnd && endMin > rStart) {
-        throw new BadRequestException({
-          message: 'Chevauchement avec une autre réservation',
-          messageE: 'Overlaps another reservation',
-        });
-      }
+  for (const reservation of otherReservations) {
+    const reservationStart = toMinutes(reservation.hour);
+    const reservationEnd = reservationStart + duration;
+
+    if (
+      startMin < reservationEnd &&
+      endMin > reservationStart
+    ) {
+      throw new BadRequestException({
+        message:
+          'Chevauchement avec une autre réservation',
+        messageE:
+          'Overlaps another reservation',
+      });
     }
+  }
 
-    const reservation = await this.prisma.reservation.update({
-      where: { reservationId: id },
-      data: { date: dto.date, hour: hourForDisplay },
+  const reservation =
+    await this.prisma.reservation.update({
+      where: {
+        reservationId: id,
+      },
+      data: {
+        date: dto.date,
+        hour: hourForDisplay,
+      },
     });
 
-    const titlePatientFr = 'Réservation modifiée';
-    const titlePatientEn = 'Reservation updated';
-    const msgPatientFr = `Votre réservation a été reprogrammée au ${dto.date} à ${hourForDisplay}.`;
-    const msgPatientEn = `Your reservation has been rescheduled to ${dto.date} at ${hourForDisplay}.`;
+  const titlePatientFr = 'Réservation modifiée';
+  const titlePatientEn = 'Reservation updated';
 
-    const titleDoctorFr = 'Réservation reprogrammée';
-    const titleDoctorEn = 'Reservation rescheduled';
-    const msgDoctorFr = `La réservation de ${existing.patient?.firstName || 'un patient'} ${existing.patient?.lastName || ''} a été déplacée au ${dto.date} à ${hourForDisplay}.`;
-    const msgDoctorEn = `The reservation of ${existing.patient?.firstName || 'a patient'} ${existing.patient?.lastName || ''} has been moved to ${dto.date} at ${hourForDisplay}.`;
+  const msgPatientFr =
+    `Votre réservation a été reprogrammée au ` +
+    `${dto.date} à ${hourForDisplay}.`;
 
-    void this.createNotification(
-      existing.patientId,
-      titlePatientFr,
-      titlePatientEn,
-      msgPatientFr,
-      msgPatientEn,
-    ).catch(() => void 0);
+  const msgPatientEn =
+    `Your reservation has been rescheduled to ` +
+    `${dto.date} at ${hourForDisplay}.`;
 
-    void this.createNotification(
-      existing.medecinId,
-      titleDoctorFr,
-      titleDoctorEn,
-      msgDoctorFr,
-      msgDoctorEn,
-    ).catch(() => void 0);
+  const titleDoctorFr = 'Réservation reprogrammée';
+  const titleDoctorEn = 'Reservation rescheduled';
 
-    void this.pushIfPossible(
-      existing.patient?.expotoken,
-      titlePatientFr,
-      titlePatientEn,
-      msgPatientFr,
-      msgPatientEn,
-      {
-        kind: 'RESERVATION_RESCHEDULED',
-        reservationId: reservation.reservationId,
-      },
-    ).catch(() => void 0);
+  const msgDoctorFr =
+    `La réservation de ` +
+    `${existing.patient?.firstName || 'un patient'} ` +
+    `${existing.patient?.lastName || ''} ` +
+    `a été déplacée au ${dto.date} à ${hourForDisplay}.`;
 
-    void this.pushIfPossible(
-      existing.medecin?.expotoken,
-      titleDoctorFr,
-      titleDoctorEn,
-      msgDoctorFr,
-      msgDoctorEn,
-      {
-        kind: 'RESERVATION_RESCHEDULED_DOCTOR',
-        reservationId: reservation.reservationId,
-      },
-    ).catch(() => void 0);
+  const msgDoctorEn =
+    `The reservation of ` +
+    `${existing.patient?.firstName || 'a patient'} ` +
+    `${existing.patient?.lastName || ''} ` +
+    `has been moved to ${dto.date} at ${hourForDisplay}.`;
 
-    return {
-      success: true,
-      message: 'Date modifiée avec succès',
-      messageE: 'Date updated successfully',
-      reservation,
-    };
-  }
+  void this.createNotification(
+    existing.patientId,
+    titlePatientFr,
+    titlePatientEn,
+    msgPatientFr,
+    msgPatientEn,
+  ).catch(() => void 0);
+
+  void this.createNotification(
+    existing.medecinId,
+    titleDoctorFr,
+    titleDoctorEn,
+    msgDoctorFr,
+    msgDoctorEn,
+  ).catch(() => void 0);
+
+  void this.pushIfPossible(
+    existing.patient?.expotoken,
+    titlePatientFr,
+    titlePatientEn,
+    msgPatientFr,
+    msgPatientEn,
+    {
+      kind: 'RESERVATION_RESCHEDULED',
+      reservationId: reservation.reservationId,
+    },
+  ).catch(() => void 0);
+
+  void this.pushIfPossible(
+    existing.medecin?.expotoken,
+    titleDoctorFr,
+    titleDoctorEn,
+    msgDoctorFr,
+    msgDoctorEn,
+    {
+      kind: 'RESERVATION_RESCHEDULED_DOCTOR',
+      reservationId: reservation.reservationId,
+    },
+  ).catch(() => void 0);
+
+  return {
+    success: true,
+    message: 'Date modifiée avec succès',
+    messageE: 'Date updated successfully',
+    reservation,
+  };
+}
 
   async findOne(id: number) {
     const reservation = await this.prisma.reservation.findUnique({

@@ -462,17 +462,17 @@ export class ReservationsService {
     });
   }
 
-  if (
-    dateTime.getTime() <
-    now.getTime() + 6 * 60 * 60 * 1000
-  ) {
-    throw new BadRequestException({
-      message:
-        "La réservation doit être faite au moins 6h à l'avance",
-      messageE:
-        'Reservation must be made at least 6h in advance',
-    });
-  }
+  // if (
+  //   dateTime.getTime() <
+  //   now.getTime() + 6 * 60 * 60 * 1000
+  // ) {
+  //   throw new BadRequestException({
+  //     message:
+  //       "La réservation doit être faite au moins 6h à l'avance",
+  //     messageE:
+  //       'Reservation must be made at least 6h in advance',
+  //   });
+  // }
 
   const medecin = await this.prisma.user.findUnique({
     where: {

@@ -742,19 +742,30 @@ export class ReservationsService {
     hourForDisplay: string,
   ) {
     const today = dateAtLocalMidnight('Africa/Douala');
-    const activeSubscription = await this.prisma.abonnement.findFirst({
+    const todayTime = today.getTime();
+
+    // ============================================================
+    // Un patient peut avoir PLUSIEURS abonnements pour la même
+    // spécialité. On parcourt chaque abonnement (du plus ancien au
+    // plus récent) et on prend le premier encore UTILISABLE :
+    //   - non expiré (endDate >= aujourd'hui)
+    //   - nombre de réservations pas encore épuisé
+    // Si l'abonnement est épuisé ou expiré, on passe au suivant.
+    // ============================================================
+
+    const subscriptions = await this.prisma.abonnement.findMany({
       where: {
         patientId: dto.patientId,
         status: AbonnementStatus.CONFIRMED,
-        endDate: { gte: today },
         package: {
           specialityId: dto.specialityId,
         },
       },
       include: { package: true },
+      orderBy: [{ createdAt: 'asc' }, { abonnementId: 'asc' }],
     });
 
-    if (!activeSubscription) {
+    if (subscriptions.length === 0) {
       throw new BadRequestException({
         message: 'Vous n\'avez pas d\'abonnement actif pour cette spécialité',
         messageE: 'You have no active subscription for this speciality',
@@ -762,43 +773,99 @@ export class ReservationsService {
       });
     }
 
-    const usedCount = await this.prisma.reservation.count({
-      where: {
-        patientId: dto.patientId,
-        abonnementId: activeSubscription.abonnementId,
-        type: 'CALL',
-        status: { in: [ReservationStatus.PENDING, ReservationStatus.STARTED, ReservationStatus.COMPLETED] },
-      },
-    });
+    let activeSubscription: (typeof subscriptions)[number] | null = null;
+    let remainingBefore = 0;
 
-    const maxConsultations = activeSubscription.numberOfTimePlanReservation || 0;
+    for (const subscription of subscriptions) {
+      // Abonnement expiré => on passe au suivant
+      if (new Date(subscription.endDate).getTime() < todayTime) {
+        continue;
+      }
 
-    if (usedCount >= maxConsultations) {
+      // Vérité d'utilisation : toute réservation attachée à l'abonnement
+      // compte, quel que soit son type ou son statut.
+      const usedCount = await this.prisma.reservation.count({
+        where: {
+          abonnementId: subscription.abonnementId,
+        },
+      });
+
+      // remainingReservations est le compteur atomique décrémenté dans la
+      // même transaction que la création de la réservation (verrou contre
+      // les réservations simultanées). usedCount sert de garde
+      // anti-désynchronisation : on ne consomme jamais plus que le quota
+      // total du package.
+      const remaining = Math.min(
+        subscription.remainingReservations,
+        Math.max(0, (subscription.numberOfTimePlanReservation || 0) - usedCount),
+      );
+
+      // Abonnement dont le quota de réservations est épuisé => on passe au suivant
+      if (remaining <= 0) {
+        continue;
+      }
+
+      activeSubscription = subscription;
+      remainingBefore = remaining;
+      break;
+    }
+
+    if (!activeSubscription) {
+      const hasNotExpired = subscriptions.some(
+        (s) => new Date(s.endDate).getTime() >= todayTime,
+      );
+
+      if (!hasNotExpired) {
+        throw new BadRequestException({
+          message: 'Vos abonnements pour cette spécialité sont expirés',
+          messageE: 'Your subscriptions for this speciality have expired',
+          requiredAction: 'SUBSCRIBE',
+        });
+      }
+
       throw new BadRequestException({
-        message: 'Vous avez atteint le quota de consultations de votre abonnement',
-        messageE: 'You have reached your subscription consultation quota',
-        usedCount,
-        maxConsultations,
+        message: 'Vous avez atteint le quota de consultations de vos abonnements pour cette spécialité',
+        messageE: 'You have reached the consultation quota of your subscriptions for this speciality',
         requiredAction: 'RENEW_SUBSCRIPTION',
       });
     }
 
-    const reservation = await this.prisma.reservation.create({
-      data: {
-        date: dto.date,
-        hour: hourForDisplay,
-        type: dto.type,
-        patientName: dto.patientName,
-        sex: dto.sex,
-        age: dto.age,
-        description: dto.description,
-        medecinId: dto.medecinId,
-        patientId: dto.patientId,
-        location: dto.location || null,
-        amount: 0,
-        abonnementId: activeSubscription.abonnementId,
-        status: ReservationStatus.PENDING,
-      },
+    const reservation = await this.prisma.$transaction(async (tx) => {
+      const decremented = await tx.abonnement.updateMany({
+        where: {
+          abonnementId: activeSubscription.abonnementId,
+          remainingReservations: { gte: 1 },
+        },
+        data: {
+          remainingReservations: { decrement: 1 },
+        },
+      });
+
+      if (decremented.count === 0) {
+        throw new BadRequestException({
+          message: 'Vous avez atteint le quota de consultations de votre abonnement',
+          messageE: 'You have reached your subscription consultation quota',
+          requiredAction: 'RENEW_SUBSCRIPTION',
+        });
+      }
+
+      return tx.reservation.create({
+        data: {
+          date: dto.date,
+          hour: hourForDisplay,
+          type: dto.type,
+          patientName: dto.patientName,
+          sex: dto.sex,
+          age: dto.age,
+          description: dto.description,
+          medecinId: dto.medecinId,
+          patientId: dto.patientId,
+          location: dto.location || null,
+          amount: 0,
+          abonnementId: activeSubscription.abonnementId,
+          status: ReservationStatus.PENDING,
+        },
+      });
     });
 
     const titlePatientFr = 'Réservation confirmée';
@@ -861,7 +928,7 @@ export class ReservationsService {
       reservation: {
         ...reservation,
         usedSubscription: true,
-        consultationsRestantes: maxConsultations - usedCount - 1,
+        consultationsRestantes: remainingBefore - 1,
         consultationPrice,
         duration,
         startHour: hourForDisplay,

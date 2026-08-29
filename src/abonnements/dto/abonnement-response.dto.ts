@@ -86,6 +86,13 @@ export class AbonnementResponseDto {
   @Expose()
   numberOfTimePlanReservation: number;
 
+  @ApiPropertyOptional({
+    description: 'Nombre de réservations restantes sur cet abonnement',
+    example: 3,
+  })
+  @Expose()
+  remainingReservations?: number;
+
   @ApiProperty({ enum: ['PENDING', 'CONFIRMED'], example: 'CONFIRMED' })
   @Expose()
   status: string;

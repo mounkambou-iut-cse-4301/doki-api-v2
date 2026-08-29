@@ -1013,176 +1013,265 @@ export class AbonnementsService {
       });
 
     // =====================================================
-    // 4. Vérifier si un abonnement encore UTILISABLE existe
+    // 4. Souscription sérialisée : patient + spécialité
     // =====================================================
     //
-    // Un abonnement bloque une nouvelle souscription
-    // uniquement si :
+    // Le verrou MySQL GET_LOCK garantit qu'un double clic ou
+    // deux requêtes simultanées ne créent jamais deux abonnements
+    // pour la même combinaison patient + spécialité.
     //
-    // - il est CONFIRMED
-    // - sa date n'est pas dépassée
-    // - son quota de consultations n'est PAS épuisé
+    // Une souscription est INTERDITE si :
+    //  - un abonnement PENDING existe (traitement en cours)
+    //  - un abonnement CONFIRMED, non expiré et avec au moins
+    //    une consultation restante existe
     //
-    // IMPORTANT :
-    // toute réservation existante compte,
-    // peu importe son status.
+    // Vérité métier pour le renouvellement : toutes les
+    // réservations attachées à l'abonnement comptent, quel que
+    // soit leur type ou leur statut.
     // =====================================================
 
-    const activeSubscriptions =
-      await this.prisma.abonnement.findMany({
-        where: {
-          patientId: dto.patientId,
-
-          package: {
-            specialityId:
-              pkg.specialityId,
-          },
-
-          status:
-            AbonnementStatus.CONFIRMED,
-
-          endDate: {
-            gte: dateAtLocalMidnight(
-              'Africa/Douala',
-            ),
-          },
-        },
-
-        select: {
-          abonnementId: true,
-
-          packageId: true,
-
-          numberOfTimePlanReservation:
-            true,
-
-          _count: {
-            select: {
-              reservations: true,
-            },
-          },
-        },
-      });
-
-    // Chercher un abonnement qui possède encore
-    // au moins une consultation disponible.
-    const existingActive =
-      activeSubscriptions.find(
-        (abonnement) => {
-          const nombreAutorise =
-            abonnement
-              .numberOfTimePlanReservation ??
-            0;
-
-          const nombreUtilise =
-            abonnement
-              ._count
-              .reservations;
-
-          return (
-            nombreUtilise <
-            nombreAutorise
-          );
-        },
-      );
-
-    if (existingActive) {
-      const nombreAutorise =
-        existingActive
-          .numberOfTimePlanReservation ??
-        0;
-
-      const nombreUtilise =
-        existingActive
-          ._count
-          .reservations;
-
-      const nombreRestant =
-        Math.max(
-          0,
-          nombreAutorise -
-            nombreUtilise,
-        );
-
-      throw new ConflictException({
-        message:
-          'Vous avez déjà un abonnement actif pour cette spécialité. ' +
-          `Il vous reste ${nombreRestant} consultation(s).`,
-
-        messageE:
-          'You already have an active subscription for this speciality. ' +
-          `You have ${nombreRestant} consultation(s) remaining.`,
-      });
-    }
-
-    // =====================================================
-    // 5. Calculer les dates
-    // =====================================================
-
-    const debutDateObj =
-      dateAtLocalMidnight(
-        'Africa/Douala',
-      );
-
-    const endDateObj =
-      addDaysUTC(
-        debutDateObj,
-        pkg.dureeValiditeJours,
-      );
-
-    // =====================================================
-    // 6. Créer transaction + abonnement
-    // =====================================================
+    const lockKey =
+      `subscription:${dto.patientId}:${pkg.specialityId}`;
 
     const abonnement =
       await this.prisma.$transaction(
         async (tx) => {
-          const transaction =
-            await tx.transaction.create({
-              data: {
-                amount: pkg.prix,
-                type:
-                  TransactionType.ABONNEMENT,
-                status:
-                  TransactionStatus.PENDING,
-              },
-            });
+          let lockHeld = false;
 
-          return tx.abonnement.create({
-            data: {
-              patientId:
-                dto.patientId,
+          try {
+            // Acquisition du verrou (timeout : 10 secondes)
+            const lockResult =
+              await tx.$queryRaw<
+                Array<{
+                  isLocked: number | bigint | null;
+                }>
+              >`
+                SELECT GET_LOCK(${lockKey}, 10) AS isLocked
+              `;
 
-              packageId:
-                dto.packageId,
+            const isLocked =
+              Number(
+                lockResult[0]
+                  ?.isLocked,
+              );
 
-              debutDate:
+            if (
+              isLocked !== 1
+            ) {
+              throw new ConflictException({
+                message:
+                  'Une souscription est déjà en cours de traitement pour cette spécialité. Veuillez patienter quelques secondes.',
+
+                messageE:
+                  'A subscription is already being processed for this speciality. Please wait a few seconds.',
+              });
+            }
+
+            lockHeld = true;
+
+            // =============================================
+            // 4 bis. Vérifier les abonnements bloquants
+            // =============================================
+
+            const subscriptions =
+              await tx.abonnement.findMany({
+                where: {
+                  patientId:
+                    dto.patientId,
+
+                  package: {
+                    specialityId:
+                      pkg.specialityId,
+                  },
+
+                  status: {
+                    in: [
+                      AbonnementStatus.PENDING,
+                      AbonnementStatus.CONFIRMED,
+                    ],
+                  },
+
+                  endDate: {
+                    gte: dateAtLocalMidnight(
+                      'Africa/Douala',
+                    ),
+                  },
+                },
+
+                select: {
+                  abonnementId:
+                    true,
+
+                  status: true,
+
+                  numberOfTimePlanReservation:
+                    true,
+
+                  _count: {
+                    select: {
+                      reservations:
+                        true,
+                    },
+                  },
+                },
+
+                orderBy: {
+                  createdAt: 'desc',
+                },
+              });
+
+            // (a) Une souscription est déjà en cours
+            const pendingSubscription =
+              subscriptions.find(
+                (subscription) =>
+                  subscription.status ===
+                  AbonnementStatus.PENDING,
+              );
+
+            if (
+              pendingSubscription
+            ) {
+              throw new ConflictException({
+                message:
+                  'Une souscription est déjà en cours de traitement pour cette spécialité. Veuillez patienter quelques secondes.',
+
+                messageE:
+                  'A subscription is already being processed for this speciality. Please wait a few seconds.',
+              });
+            }
+
+            // (b) Un abonnement encore utilisable existe
+            const existingActive =
+              subscriptions.find(
+                (subscription) => {
+                  const total =
+                    subscription
+                      .numberOfTimePlanReservation ??
+                    0;
+
+                  const used =
+                    subscription
+                      ._count
+                      .reservations;
+
+                  return (
+                    Math.max(
+                      0,
+                      total - used,
+                    ) > 0
+                  );
+                },
+              );
+
+            if (
+              existingActive
+            ) {
+              const total =
+                existingActive
+                  .numberOfTimePlanReservation ??
+                0;
+
+              const used =
+                existingActive
+                  ._count
+                  .reservations;
+
+              const remaining =
+                Math.max(
+                  0,
+                  total - used,
+                );
+
+              throw new ConflictException({
+                message:
+                  'Vous avez déjà un abonnement actif pour cette spécialité. ' +
+                  `Il vous reste ${remaining} consultation(s).`,
+
+                messageE:
+                  'You already have an active subscription for this speciality. ' +
+                  `You have ${remaining} consultation(s) remaining.`,
+              });
+            }
+
+            // =============================================
+            // 5. Calculer les dates
+            // =============================================
+
+            const debutDateObj =
+              dateAtLocalMidnight(
+                'Africa/Douala',
+              );
+
+            const endDateObj =
+              addDaysUTC(
                 debutDateObj,
+                pkg.dureeValiditeJours,
+              );
 
-              endDate:
-                endDateObj,
+            // =============================================
+            // 6. Créer transaction + abonnement (PENDING)
+            // =============================================
 
-              amount:
-                pkg.prix,
+            const transaction =
+              await tx.transaction.create({
+                data: {
+                  amount: pkg.prix,
+                  type:
+                    TransactionType.ABONNEMENT,
+                  status:
+                    TransactionStatus.PENDING,
+                },
+              });
 
-              numberOfTimePlanReservation:
-                pkg.nombreConsultations,
+            return tx.abonnement.create({
+              data: {
+                patientId:
+                  dto.patientId,
 
-              transactionId:
-                transaction.transactionId,
+                packageId:
+                  dto.packageId,
 
-              status:
-                AbonnementStatus.PENDING,
-            },
+                debutDate:
+                  debutDateObj,
 
-            include: {
-              package: {
-                include: {
-                  speciality: true,
+                endDate:
+                  endDateObj,
+
+                amount:
+                  pkg.prix,
+
+                numberOfTimePlanReservation:
+                  pkg.nombreConsultations,
+
+                remainingReservations:
+                  pkg.nombreConsultations,
+
+                transactionId:
+                  transaction.transactionId,
+
+                status:
+                  AbonnementStatus.PENDING,
+              },
+
+              include: {
+                package: {
+                  include: {
+                    speciality: true,
+                  },
                 },
               },
-            },
-          });
+            });
+          } finally {
+            // =============================================
+            // Toujours libérer le verrou, en cas de succès
+            // comme en cas d'erreur
+            // =============================================
+            if (lockHeld) {
+              await tx.$queryRaw`
+                SELECT RELEASE_LOCK(${lockKey})
+              `.catch(() => void 0);
+            }
+          }
         },
       );
 
@@ -1502,6 +1591,7 @@ export class AbonnementsService {
             0;
 
           const consultationsRestantes =
+            abo.remainingReservations ??
             Math.max(
               0,
               consultationsTotal -
@@ -1738,6 +1828,7 @@ export class AbonnementsService {
             0;
 
           const consultationsRestantes =
+            abo.remainingReservations ??
             Math.max(
               0,
               consultationsTotal -
@@ -2041,6 +2132,7 @@ export class AbonnementsService {
               0;
 
             const consultationsRestantes =
+              abo.remainingReservations ??
               Math.max(
                 0,
                 consultationsTotal -
@@ -2180,6 +2272,7 @@ export class AbonnementsService {
       0;
 
     const consultationsRestantes =
+      abonnement.remainingReservations ??
       Math.max(
         0,
         consultationsTotal -
@@ -2413,6 +2506,7 @@ export class AbonnementsService {
             0;
 
           const consultationsRestantes =
+            abo.remainingReservations ??
             Math.max(
               0,
               consultationsTotal -

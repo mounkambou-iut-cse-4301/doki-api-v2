@@ -1,50 +1,910 @@
+// import {
+//   Injectable, BadRequestException, NotFoundException, ConflictException,
+//   ForbiddenException,
+// } from '@nestjs/common';
+// import { CreateAbonnementDto } from './dto/create-abonnement.dto';
+// import { QueryAbonnementDto } from './dto/query-abonnement.dto';
+// import { randomUUID } from 'crypto';
+// import { AbonnementStatus, TransactionStatus, TransactionType, UserType } from 'generated/prisma';
+// import { PrismaService } from 'src/prisma/prisma.service';
+// import { bi, isValidExpoToken, sendExpoPush } from 'src/utils/expo-push';
+
+// /** Minuit local (Africa/Douala) -> Date ISO (UTC) */
+// function dateAtLocalMidnight(tz: string, base = new Date()): Date {
+//   const fmt = new Intl.DateTimeFormat('en-CA', {
+//     timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+//   });
+//   const [y, m, d] = fmt.format(base).split('-').map(Number);
+//   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+// }
+
+// /** Ajoute N jours */
+// function addDaysUTC(d: Date, n: number): Date {
+//   const result = new Date(d);
+//   result.setUTCDate(result.getUTCDate() + n);
+//   return result;
+// }
+
+// /** Plage journée locale (Africa/Douala) pour un filtre YYYY-MM-DD */
+// function localDayRange(dateStr: string, tz: string): { gte: Date; lt: Date } {
+//   const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+//   const startLocal = new Date(`${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}T00:00:00`);
+//   const start = dateAtLocalMidnight(tz, startLocal);
+//   const end = new Date(start);
+//   end.setUTCDate(end.getUTCDate() + 1);
+//   return { gte: start, lt: end };
+// }
+
+// @Injectable()
+// export class AbonnementsService {
+//   constructor(private readonly prisma: PrismaService) {}
+
+//   private async createNotification(userId: number, titleFr: string, titleEn: string, msgFr: string, msgEn: string) {
+//     return this.prisma.notification.create({
+//       data: {
+//         userId,
+//         title: bi(titleFr, titleEn),
+//         message: bi(msgFr, msgEn),
+//         isRead: false,
+//       },
+//     });
+//   }
+
+//   /**
+//    * Souscrire à un package de groupe
+//    */
+//   async subscribeToPackage(dto: CreateAbonnementDto): Promise<any> {
+//     // Vérifier que le patient existe
+//     const patient = await this.prisma.user.findUnique({
+//       where: { userId: dto.patientId },
+//     });
+    
+//     if (!patient || patient.userType !== UserType.PATIENT) {
+//       throw new NotFoundException({
+//         message: `Patient d'ID ${dto.patientId} introuvable.`,
+//         messageE: `Patient with ID ${dto.patientId} not found.`,
+//       });
+//     }
+
+//     // Vérifier que le package existe et est actif
+//     const pkg = await this.prisma.groupePackage.findUnique({
+//       where: { packageId: dto.packageId },
+//       include: { speciality: true },
+//     });
+
+//     if (!pkg) {
+//       throw new NotFoundException({
+//         message: `Package d'ID ${dto.packageId} introuvable.`,
+//         messageE: `Package with ID ${dto.packageId} not found.`,
+//       });
+//     }
+
+//     if (!pkg.isActive) {
+//       throw new BadRequestException({
+//         message: 'Ce package n\'est pas actif.',
+//         messageE: 'This package is not active.',
+//       });
+//     }
+
+//     // Récupérer tous les médecins de cette spécialité
+//     const medecins = await this.prisma.user.findMany({
+//       where: {
+//         userType: UserType.MEDECIN,
+//         specialityId: pkg.specialityId,
+//         isBlock: false,
+//         isVerified: true,
+//       },
+//       select: { userId: true, firstName: true, lastName: true, expotoken: true },
+//     });
+
+//     // if (medecins.length === 0) {
+//     //   throw new NotFoundException({
+//     //     message: 'Aucun médecin disponible pour cette spécialité.',
+//     //     messageE: 'No doctor available for this speciality.',
+//     //   });
+//     // }
+
+//     // Vérifier si le patient a déjà un abonnement actif pour cette spécialité
+//     const existingActive = await this.prisma.abonnement.findFirst({
+//       where: {
+//         patientId: dto.patientId,
+//         package: {
+//           specialityId: pkg.specialityId,
+//         },
+//         status: AbonnementStatus.CONFIRMED,
+//         endDate: { gte: dateAtLocalMidnight('Africa/Douala') },
+//       },
+//     });
+
+//     if (existingActive) {
+//       throw new ConflictException({
+//         message: 'Vous avez déjà un abonnement actif pour cette spécialité.',
+//         messageE: 'You already have an active subscription for this speciality.',
+//       });
+//     }
+
+//     // Calculer les dates
+//     const debutDateObj = dateAtLocalMidnight('Africa/Douala');
+//     const endDateObj = addDaysUTC(debutDateObj, pkg.dureeValiditeJours);
+
+//     // Création atomique - sans medecinId car il n'existe plus dans le modèle
+//     const abonnement = await this.prisma.$transaction(async (tx) => {
+//       const transaction = await tx.transaction.create({
+//         data: { 
+//           amount: pkg.prix, 
+//           type: TransactionType.ABONNEMENT, 
+//           status: TransactionStatus.PENDING 
+//         },
+//       });
+
+//       return tx.abonnement.create({
+//         data: {
+//           patientId: dto.patientId,
+//           packageId: dto.packageId,
+//           debutDate: debutDateObj,
+//           endDate: endDateObj,
+//           amount: pkg.prix,
+//           numberOfTimePlanReservation: pkg.nombreConsultations,
+//           transactionId: transaction.transactionId,
+//           status: AbonnementStatus.PENDING,
+//         },
+//         include: {
+//           package: {
+//             include: { speciality: true },
+//           },
+//         },
+//       });
+//     });
+
+//     // 🔔 NOTIFS
+//     const patientTitleFr = 'Souscription à un abonnement';
+//     const patientTitleEn = 'Subscription purchase';
+//     const patientMsgFr = `Vous avez souscrit au package "${pkg.nom}". Confirmation dans quelques secondes.`;
+//     const patientMsgEn = `You subscribed to the package "${pkg.nom}". Confirmation in a few seconds.`;
+
+//     // Notifications patient
+//     void this.createNotification(
+//       patient.userId, 
+//       patientTitleFr, 
+//       patientTitleEn, 
+//       patientMsgFr, 
+//       patientMsgEn
+//     ).catch(() => void 0);
+
+//     // Notifications pour tous les médecins de la spécialité
+//     for (const medecin of medecins) {
+//       const doctorTitleFr = 'Nouvel abonnement dans votre spécialité';
+//       const doctorTitleEn = 'New subscription in your speciality';
+//       const doctorMsgFr = `Un patient a souscrit à un abonnement ${pkg.speciality.name}.`;
+//       const doctorMsgEn = `A patient subscribed to a ${pkg.speciality.name} package.`;
+
+//       void this.createNotification(
+//         medecin.userId, 
+//         doctorTitleFr, 
+//         doctorTitleEn, 
+//         doctorMsgFr, 
+//         doctorMsgEn
+//       ).catch(() => void 0);
+
+//       // Expo push si token valide
+//       if (isValidExpoToken(medecin.expotoken)) {
+//         void sendExpoPush({
+//           to: medecin.expotoken!,
+//           sound: 'default',
+//           title: bi(doctorTitleFr, doctorTitleEn),
+//           body: bi(doctorMsgFr, doctorMsgEn),
+//           data: { 
+//             kind: 'ABO_NEW', 
+//             abonnementId: abonnement.abonnementId, 
+//             patientId: patient.userId,
+//             specialityId: pkg.specialityId 
+//           },
+//           priority: 'high',
+//         });
+//       }
+//     }
+
+//     // ⏰ Confirmation différée (simulation paiement)
+//     setTimeout(async () => {
+//       try {
+//         await this.prisma.$transaction([
+//           this.prisma.abonnement.update({
+//             where: { abonnementId: abonnement.abonnementId },
+//             data: { status: AbonnementStatus.CONFIRMED },
+//           }),
+//           this.prisma.transaction.update({
+//             where: { transactionId: abonnement.transactionId! },
+//             data: { 
+//               status: TransactionStatus.PAID, 
+//               paymentId: `TR-ABO-${randomUUID()}` 
+//             },
+//           }),
+//         ]);
+
+//         // Notification de confirmation
+//         const confirmTitleFr = 'Abonnement confirmé';
+//         const confirmTitleEn = 'Subscription confirmed';
+//         const confirmMsgFr = `Votre abonnement "${pkg.nom}" a été confirmé. Bonne consultation !`;
+//         const confirmMsgEn = `Your subscription "${pkg.nom}" has been confirmed. Happy consultation!`;
+
+//         await this.createNotification(
+//           patient.userId,
+//           confirmTitleFr,
+//           confirmTitleEn,
+//           confirmMsgFr,
+//           confirmMsgEn
+//         );
+
+//       } catch (error) {
+//         console.error('Échec confirmation différée abonnement :', error);
+//       }
+//     }, 10_000);
+
+//     return {
+//       message: 'Abonnement créé avec succès',
+//       messageE: 'Subscription created successfully',
+//       messagePaiement: 'Paiement simulé - confirmation dans 10 secondes',
+//       abonnement,
+//     };
+//   }
+
+//   /**
+//    * Visualiser ses abonnements actifs (patient)
+//    */
+//   async getActiveSubscriptions(userId: number, page: number = 1, limit: number = 10) {
+//     if (!userId || userId <= 0) {
+//       throw new BadRequestException({
+//         message: 'ID utilisateur invalide',
+//         messageE: 'Invalid user ID',
+//       });
+//     }
+
+//     const user = await this.prisma.user.findUnique({
+//       where: { userId: userId },
+//       select: { userType: true },
+//     });
+
+//     if (!user) {
+//       throw new NotFoundException({ 
+//         message: 'Utilisateur non trouvé', 
+//         messageE: 'User not found' 
+//       });
+//     }
+
+//     if (user.userType !== UserType.PATIENT) {
+//       throw new ForbiddenException({
+//         message: 'Seuls les patients peuvent visualiser leurs abonnements actifs',
+//         messageE: 'Only patients can view their active subscriptions',
+//       });
+//     }
+
+//     const today = dateAtLocalMidnight('Africa/Douala');
+//     const skip = (page - 1) * limit;
+
+//     const where = {
+//       patientId: userId,
+//       status: AbonnementStatus.CONFIRMED,
+//       endDate: { gte: today },
+//     };
+
+//     const [items, total] = await this.prisma.$transaction([
+//       this.prisma.abonnement.findMany({
+//         where,
+//         skip,
+//         take: limit,
+//         include: {
+//           package: {
+//             include: { speciality: true },
+//           },
+//         },
+//         orderBy: { endDate: 'asc' },
+//       }),
+//       this.prisma.abonnement.count({ where }),
+//     ]);
+
+//     // Compter les réservations utilisées pour chaque abonnement
+//     const itemsWithUsage = await Promise.all(items.map(async (abo) => {
+//       const reservationsCount = await this.prisma.reservation.count({
+//         where: {
+//           abonnementId: abo.abonnementId,
+//           status: { in: ['COMPLETED', 'PENDING'] },
+//         },
+//       });
+
+//       return {
+//         ...abo,
+//         consultationsUtilisees: reservationsCount,
+//         consultationsRestantes: (abo.numberOfTimePlanReservation || 0) - reservationsCount,
+//       };
+//     }));
+
+//     return {
+//       message: 'Abonnements actifs récupérés avec succès',
+//       messageE: 'Active subscriptions retrieved successfully',
+//       data: itemsWithUsage,
+//       meta: {
+//         total,
+//         page,
+//         limit,
+//         pageCount: Math.ceil(total / limit),
+//       },
+//     };
+//   }
+
+//   /**
+//    * Consulter l'historique des abonnements (patient)
+//    */
+//   async getSubscriptionHistory(userId: number, query: QueryAbonnementDto) {
+//     if (!userId || userId <= 0) {
+//       throw new BadRequestException({
+//         message: 'ID utilisateur invalide',
+//         messageE: 'Invalid user ID',
+//       });
+//     }
+
+//     const user = await this.prisma.user.findUnique({
+//       where: { userId: userId },
+//       select: { userType: true },
+//     });
+
+//     if (!user) {
+//       throw new NotFoundException({ 
+//         message: 'Utilisateur non trouvé', 
+//         messageE: 'User not found' 
+//       });
+//     }
+
+//     if (user.userType !== UserType.PATIENT) {
+//       throw new ForbiddenException({
+//         message: 'Seuls les patients peuvent consulter leur historique d\'abonnements',
+//         messageE: 'Only patients can view their subscription history',
+//       });
+//     }
+
+//     const page = query.page || 1;
+//     const limit = query.limit || 10;
+//     const skip = (page - 1) * limit;
+
+//     let where: any = {
+//       patientId: userId,
+//     };
+
+//     if (query.status) {
+//       where.status = query.status;
+//     }
+
+//     if (query.packageId) {
+//       where.packageId = query.packageId;
+//     }
+
+//     if (query.specialityId) {
+//       where.package = {
+//         specialityId: query.specialityId,
+//       };
+//     }
+
+//     if (query.date) {
+//       const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
+//       where.debutDate = { gte, lt };
+//     }
+
+//     if (query.q && query.q.trim()) {
+//       const q = query.q.trim();
+//       where.OR = [
+//         { package: { nom: { contains: q } } },
+//       ];
+//     }
+
+//     const [items, total] = await this.prisma.$transaction([
+//       this.prisma.abonnement.findMany({
+//         where,
+//         skip,
+//         take: limit,
+//         include: {
+//           package: {
+//             include: { speciality: true },
+//           },
+//           transaction: true,
+//         },
+//         orderBy: { createdAt: 'desc' },
+//       }),
+//       this.prisma.abonnement.count({ where }),
+//     ]);
+
+//     const itemsWithUsage = await Promise.all(items.map(async (abo) => {
+//       const reservationsCount = await this.prisma.reservation.count({
+//         where: {
+//           abonnementId: abo.abonnementId,
+//         },
+//       });
+
+//       return {
+//         ...abo,
+//         consultationsUtilisees: reservationsCount,
+//         consultationsRestantes: (abo.numberOfTimePlanReservation || 0) - reservationsCount,
+//       };
+//     }));
+
+//     return {
+//       message: 'Historique des abonnements récupéré avec succès',
+//       messageE: 'Subscription history retrieved successfully',
+//       data: itemsWithUsage,
+//       meta: {
+//         total,
+//         page,
+//         limit,
+//         pageCount: Math.ceil(total / limit),
+//       },
+//     };
+//   }
+
+//   /**
+//    * Médecin: Voir les abonnements de sa spécialité
+//    */
+//   async getSubscriptionsBySpeciality(userId: number, query: QueryAbonnementDto) {
+//     if (!userId || userId <= 0) {
+//       throw new BadRequestException({
+//         message: 'ID médecin invalide',
+//         messageE: 'Invalid doctor ID',
+//       });
+//     }
+
+//     const medecin = await this.prisma.user.findUnique({
+//       where: { userId: userId },
+//       include: { speciality: true },
+//     });
+
+//     if (!medecin || medecin.userType !== UserType.MEDECIN) {
+//       throw new NotFoundException({
+//         message: 'Médecin non trouvé',
+//         messageE: 'Doctor not found',
+//       });
+//     }
+
+//     if (!medecin.speciality) {
+//       throw new BadRequestException({
+//         message: 'Ce médecin n\'a pas de spécialité associée',
+//         messageE: 'This doctor has no associated speciality',
+//       });
+//     }
+
+//     const page = query.page || 1;
+//     const limit = query.limit || 10;
+//     const skip = (page - 1) * limit;
+
+//     let where: any = {
+//       package: {
+//         specialityId: medecin.specialityId,
+//       },
+//     };
+
+//     if (query.status) {
+//       where.status = query.status;
+//     }
+
+//     if (query.patientId) {
+//       where.patientId = query.patientId;
+//     }
+
+//     if (query.active === true) {
+//       const today = dateAtLocalMidnight('Africa/Douala');
+//       where.endDate = { gte: today };
+//       where.status = AbonnementStatus.CONFIRMED;
+//     }
+
+//     if (query.date) {
+//       const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
+//       where.debutDate = { gte, lt };
+//     }
+
+//     if (query.q && query.q.trim()) {
+//       const q = query.q.trim();
+//       where.patient = {
+//         OR: [
+//           { firstName: { contains: q } },
+//           { lastName: { contains: q } },
+//         ],
+//       };
+//     }
+
+//     const [items, total] = await this.prisma.$transaction([
+//       this.prisma.abonnement.findMany({
+//         where,
+//         skip,
+//         take: limit,
+//         include: {
+//           patient: {
+//             select: { userId: true, firstName: true, lastName: true, email: true, phone: true, profile: true },
+//           },
+//           package: {
+//             include: { speciality: true },
+//           },
+//           transaction: true,
+//         },
+//         orderBy: { createdAt: 'desc' },
+//       }),
+//       this.prisma.abonnement.count({ where }),
+//     ]);
+
+//     const itemsWithUsage = await Promise.all(items.map(async (abo) => {
+//       const reservationsCount = await this.prisma.reservation.count({
+//         where: {
+//           abonnementId: abo.abonnementId,
+//           medecinId: userId,
+//         },
+//       });
+
+//       return {
+//         ...abo,
+//         consultationsUtiliseesAvecMoi: reservationsCount,
+//         consultationsRestantes: (abo.numberOfTimePlanReservation || 0) - reservationsCount,
+//       };
+//     }));
+
+//     return {
+//       message: 'Abonnements de la spécialité récupérés avec succès',
+//       messageE: 'Speciality subscriptions retrieved successfully',
+//       data: itemsWithUsage,
+//       meta: {
+//         total,
+//         page,
+//         limit,
+//         pageCount: Math.ceil(total / limit),
+//       },
+//     };
+//   }
+
+//   /**
+//    * Obtenir les détails d'un abonnement
+//    */
+// async findOne(id: number) {
+//   const abonnement = await this.prisma.abonnement.findUnique({
+//     where: { abonnementId: id },
+//     include: {
+//       patient: {
+//         select: { 
+//           userId: true, 
+//           firstName: true, 
+//           lastName: true, 
+//           email: true, 
+//           phone: true, 
+//           profile: true,
+//           createdAt: true
+//         },
+//       },
+//       package: {
+//         include: { 
+//           speciality: true 
+//         },
+//       },
+//       transaction: true,
+//     },
+//   });
+
+//   if (!abonnement) {
+//     throw new NotFoundException({
+//       message: `Abonnement d'ID ${id} introuvable.`,
+//       messageE: `Subscription with ID ${id} not found.`,
+//     });
+//   }
+
+//   // Compter les réservations utilisées
+//   const reservationsCount = await this.prisma.reservation.count({
+//     where: {
+//       abonnementId: id,
+//     },
+//   });
+
+//   // Récupérer tous les patients qui ont un abonnement actif pour ce même package
+//   const patientsAvecAbonnementActif = await this.prisma.abonnement.findMany({
+//     where: {
+//       packageId: abonnement.packageId,
+//       status: 'CONFIRMED',
+//       endDate: { gte: new Date() },
+//       abonnementId: { not: id } // Exclure l'abonnement actuel
+//     },
+//     include: {
+//       patient: {
+//         select: {
+//           userId: true,
+//           firstName: true,
+//           lastName: true,
+//           email: true,
+//           phone: true,
+//           profile: true,
+//         }
+//       }
+//     },
+//     take: 10, // Limiter à 10 patients
+//   });
+
+//   return {
+//     message: 'Abonnement récupéré avec succès',
+//     messageE: 'Subscription retrieved successfully',
+//     data: {
+//       ...abonnement,
+//       consultationsUtilisees: reservationsCount,
+//       consultationsRestantes: (abonnement.numberOfTimePlanReservation || 0) - reservationsCount,
+//     },
+//   };
+// }
+//   /**
+//    * Lister tous les abonnements (admin)
+//    */
+//   async findAll(query: QueryAbonnementDto) {
+//     const page = query.page || 1;
+//     const limit = query.limit || 10;
+//     const skip = (page - 1) * limit;
+
+//     const where: any = {};
+
+//     if (query.patientId) {
+//       where.patientId = query.patientId;
+//     }
+
+//     if (query.packageId) {
+//       where.packageId = query.packageId;
+//     }
+
+//     if (query.specialityId) {
+//       where.package = {
+//         specialityId: query.specialityId,
+//       };
+//     }
+
+//     if (query.status) {
+//       where.status = query.status;
+//     }
+
+//     if (query.date) {
+//       const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
+//       where.debutDate = { gte, lt };
+//     }
+
+//     if (query.q && query.q.trim()) {
+//       const q = query.q.trim();
+//       where.OR = [
+//         { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
+//         { package: { nom: { contains: q } } },
+//       ];
+//     }
+
+//     if (query.active === true) {
+//       const today = dateAtLocalMidnight('Africa/Douala');
+//       where.endDate = { gte: today };
+//       where.status = AbonnementStatus.CONFIRMED;
+//     }
+
+//     const [items, total] = await this.prisma.$transaction([
+//       this.prisma.abonnement.findMany({
+//         where,
+//         skip,
+//         take: limit,
+//         include: {
+//           patient: {
+//             select: { userId: true, firstName: true, lastName: true, email: true, profile: true },
+//           },
+//           package: {
+//             include: { speciality: true },
+//           },
+//           transaction: true,
+//         },
+//         orderBy: { createdAt: 'desc' },
+//       }),
+//       this.prisma.abonnement.count({ where }),
+//     ]);
+
+//     return {
+//       message: 'Abonnements récupérés avec succès',
+//       messageE: 'Subscriptions retrieved successfully',
+//       data: items,
+//       meta: {
+//         total,
+//         page,
+//         limit,
+//         pageCount: Math.ceil(total / limit),
+//       },
+//     };
+//   }
+
+//   /**
+//    * Confirmer un abonnement manuellement
+//    */
+//   async confirm(id: number): Promise<any> {
+//     const abo = await this.prisma.abonnement.findUnique({ 
+//       where: { abonnementId: id },
+//       include: { package: true, patient: true }
+//     });
+    
+//     if (!abo) {
+//       throw new NotFoundException({ 
+//         message: `Abonnement ${id} introuvable.`, 
+//         messageE: `Subscription ${id} not found.` 
+//       });
+//     }
+    
+//     if (abo.status === AbonnementStatus.CONFIRMED) {
+//       return { 
+//         message: 'Abonnement déjà confirmé.', 
+//         messageE: 'Subscription already confirmed.', 
+//         abonnement: abo 
+//       };
+//     }
+
+//     const updated = await this.prisma.$transaction(async (tx) => {
+//       const updAbo = await tx.abonnement.update({
+//         where: { abonnementId: id }, 
+//         data: { status: AbonnementStatus.CONFIRMED },
+//       });
+      
+//       if (updAbo.transactionId) {
+//         await tx.transaction.update({
+//           where: { transactionId: updAbo.transactionId },
+//           data: { status: TransactionStatus.PAID, paymentId: `TR-ABO-${randomUUID()}` },
+//         });
+//       }
+      
+//       return updAbo;
+//     });
+
+//     // Notification de confirmation
+//     if (abo.patient) {
+//       const confirmTitleFr = 'Abonnement confirmé';
+//       const confirmTitleEn = 'Subscription confirmed';
+//       const confirmMsgFr = `Votre abonnement "${abo.package?.nom}" a été confirmé.`;
+//       const confirmMsgEn = `Your subscription "${abo.package?.nom}" has been confirmed.`;
+
+//       await this.createNotification(
+//         abo.patient.userId,
+//         confirmTitleFr,
+//         confirmTitleEn,
+//         confirmMsgFr,
+//         confirmMsgEn
+//       );
+//     }
+
+//     return {
+//       message: 'Abonnement confirmé avec succès.',
+//       messageE: 'Subscription confirmed successfully.',
+//       abonnement: updated,
+//     };
+//   }
+// }
+
 import {
-  Injectable, BadRequestException, NotFoundException, ConflictException,
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+
+import { randomUUID } from 'crypto';
+
+import {
+  AbonnementStatus,
+  TransactionStatus,
+  TransactionType,
+  UserType,
+} from 'generated/prisma';
+
 import { CreateAbonnementDto } from './dto/create-abonnement.dto';
 import { QueryAbonnementDto } from './dto/query-abonnement.dto';
-import { randomUUID } from 'crypto';
-import { AbonnementStatus, TransactionStatus, TransactionType, UserType } from 'generated/prisma';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { bi, isValidExpoToken, sendExpoPush } from 'src/utils/expo-push';
 
-/** Minuit local (Africa/Douala) -> Date ISO (UTC) */
-function dateAtLocalMidnight(tz: string, base = new Date()): Date {
+import { PrismaService } from 'src/prisma/prisma.service';
+import {
+  bi,
+  isValidExpoToken,
+  sendExpoPush,
+} from 'src/utils/expo-push';
+
+/**
+ * Minuit local (Africa/Douala) -> Date ISO (UTC)
+ */
+function dateAtLocalMidnight(
+  tz: string,
+  base = new Date(),
+): Date {
   const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   });
-  const [y, m, d] = fmt.format(base).split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+
+  const [y, m, d] = fmt
+    .format(base)
+    .split('-')
+    .map(Number);
+
+  return new Date(
+    Date.UTC(
+      y,
+      m - 1,
+      d,
+      0,
+      0,
+      0,
+    ),
+  );
 }
 
-/** Ajoute N jours */
-function addDaysUTC(d: Date, n: number): Date {
+/**
+ * Ajoute N jours
+ */
+function addDaysUTC(
+  d: Date,
+  n: number,
+): Date {
   const result = new Date(d);
-  result.setUTCDate(result.getUTCDate() + n);
+
+  result.setUTCDate(
+    result.getUTCDate() + n,
+  );
+
   return result;
 }
 
-/** Plage journée locale (Africa/Douala) pour un filtre YYYY-MM-DD */
-function localDayRange(dateStr: string, tz: string): { gte: Date; lt: Date } {
-  const [yyyy, mm, dd] = dateStr.split('-').map(Number);
-  const startLocal = new Date(`${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}T00:00:00`);
-  const start = dateAtLocalMidnight(tz, startLocal);
+/**
+ * Plage journée locale (Africa/Douala)
+ * pour un filtre YYYY-MM-DD
+ */
+function localDayRange(
+  dateStr: string,
+  tz: string,
+): {
+  gte: Date;
+  lt: Date;
+} {
+  const [yyyy, mm, dd] = dateStr
+    .split('-')
+    .map(Number);
+
+  const startLocal = new Date(
+    `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}T00:00:00`,
+  );
+
+  const start = dateAtLocalMidnight(
+    tz,
+    startLocal,
+  );
+
   const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { gte: start, lt: end };
+
+  end.setUTCDate(
+    end.getUTCDate() + 1,
+  );
+
+  return {
+    gte: start,
+    lt: end,
+  };
 }
 
 @Injectable()
 export class AbonnementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
-  private async createNotification(userId: number, titleFr: string, titleEn: string, msgFr: string, msgEn: string) {
+  private async createNotification(
+    userId: number,
+    titleFr: string,
+    titleEn: string,
+    msgFr: string,
+    msgEn: string,
+  ) {
     return this.prisma.notification.create({
       data: {
         userId,
-        title: bi(titleFr, titleEn),
-        message: bi(msgFr, msgEn),
+        title: bi(
+          titleFr,
+          titleEn,
+        ),
+        message: bi(
+          msgFr,
+          msgEn,
+        ),
         isRead: false,
       },
     });
@@ -52,504 +912,1185 @@ export class AbonnementsService {
 
   /**
    * Souscrire à un package de groupe
+   *
+   * RÈGLE IMPORTANTE :
+   * Une réservation consomme une consultation dès qu'elle
+   * existe et qu'elle est rattachée à l'abonnement.
+   *
+   * On ne tient donc PAS compte du statut de la réservation.
+   *
+   * Exemple :
+   * package = 4 consultations
+   *
+   * 0 réservation => 4 restantes
+   * 1 réservation => 3 restantes
+   * 2 réservations => 2 restantes
+   * 3 réservations => 1 restante
+   * 4 réservations => abonnement épuisé
+   *
+   * Si l'abonnement est épuisé, le patient peut souscrire
+   * à un nouvel abonnement de la même spécialité, même si
+   * la date de fin de l'ancien abonnement n'est pas atteinte.
    */
-  async subscribeToPackage(dto: CreateAbonnementDto): Promise<any> {
-    // Vérifier que le patient existe
-    const patient = await this.prisma.user.findUnique({
-      where: { userId: dto.patientId },
-    });
-    
-    if (!patient || patient.userType !== UserType.PATIENT) {
+  async subscribeToPackage(
+    dto: CreateAbonnementDto,
+  ): Promise<any> {
+    // =====================================================
+    // 1. Vérifier le patient
+    // =====================================================
+
+    const patient =
+      await this.prisma.user.findUnique({
+        where: {
+          userId: dto.patientId,
+        },
+      });
+
+    if (
+      !patient ||
+      patient.userType !== UserType.PATIENT
+    ) {
       throw new NotFoundException({
-        message: `Patient d'ID ${dto.patientId} introuvable.`,
-        messageE: `Patient with ID ${dto.patientId} not found.`,
+        message:
+          `Patient d'ID ${dto.patientId} introuvable.`,
+        messageE:
+          `Patient with ID ${dto.patientId} not found.`,
       });
     }
 
-    // Vérifier que le package existe et est actif
-    const pkg = await this.prisma.groupePackage.findUnique({
-      where: { packageId: dto.packageId },
-      include: { speciality: true },
-    });
+    // =====================================================
+    // 2. Vérifier le package
+    // =====================================================
+
+    const pkg =
+      await this.prisma.groupePackage.findUnique({
+        where: {
+          packageId: dto.packageId,
+        },
+
+        include: {
+          speciality: true,
+        },
+      });
 
     if (!pkg) {
       throw new NotFoundException({
-        message: `Package d'ID ${dto.packageId} introuvable.`,
-        messageE: `Package with ID ${dto.packageId} not found.`,
+        message:
+          `Package d'ID ${dto.packageId} introuvable.`,
+        messageE:
+          `Package with ID ${dto.packageId} not found.`,
       });
     }
 
     if (!pkg.isActive) {
       throw new BadRequestException({
-        message: 'Ce package n\'est pas actif.',
-        messageE: 'This package is not active.',
+        message:
+          'Ce package n\'est pas actif.',
+        messageE:
+          'This package is not active.',
       });
     }
 
-    // Récupérer tous les médecins de cette spécialité
-    const medecins = await this.prisma.user.findMany({
-      where: {
-        userType: UserType.MEDECIN,
-        specialityId: pkg.specialityId,
-        isBlock: false,
-        isVerified: true,
-      },
-      select: { userId: true, firstName: true, lastName: true, expotoken: true },
-    });
+    // =====================================================
+    // 3. Récupérer les médecins de la spécialité
+    // =====================================================
 
-    // if (medecins.length === 0) {
-    //   throw new NotFoundException({
-    //     message: 'Aucun médecin disponible pour cette spécialité.',
-    //     messageE: 'No doctor available for this speciality.',
-    //   });
-    // }
-
-    // Vérifier si le patient a déjà un abonnement actif pour cette spécialité
-    const existingActive = await this.prisma.abonnement.findFirst({
-      where: {
-        patientId: dto.patientId,
-        package: {
+    const medecins =
+      await this.prisma.user.findMany({
+        where: {
+          userType: UserType.MEDECIN,
           specialityId: pkg.specialityId,
+          isBlock: false,
+          isVerified: true,
         },
-        status: AbonnementStatus.CONFIRMED,
-        endDate: { gte: dateAtLocalMidnight('Africa/Douala') },
-      },
-    });
+
+        select: {
+          userId: true,
+          firstName: true,
+          lastName: true,
+          expotoken: true,
+        },
+      });
+
+    // =====================================================
+    // 4. Vérifier si un abonnement encore UTILISABLE existe
+    // =====================================================
+    //
+    // Un abonnement bloque une nouvelle souscription
+    // uniquement si :
+    //
+    // - il est CONFIRMED
+    // - sa date n'est pas dépassée
+    // - son quota de consultations n'est PAS épuisé
+    //
+    // IMPORTANT :
+    // toute réservation existante compte,
+    // peu importe son status.
+    // =====================================================
+
+    const activeSubscriptions =
+      await this.prisma.abonnement.findMany({
+        where: {
+          patientId: dto.patientId,
+
+          package: {
+            specialityId:
+              pkg.specialityId,
+          },
+
+          status:
+            AbonnementStatus.CONFIRMED,
+
+          endDate: {
+            gte: dateAtLocalMidnight(
+              'Africa/Douala',
+            ),
+          },
+        },
+
+        select: {
+          abonnementId: true,
+
+          packageId: true,
+
+          numberOfTimePlanReservation:
+            true,
+
+          _count: {
+            select: {
+              reservations: true,
+            },
+          },
+        },
+      });
+
+    // Chercher un abonnement qui possède encore
+    // au moins une consultation disponible.
+    const existingActive =
+      activeSubscriptions.find(
+        (abonnement) => {
+          const nombreAutorise =
+            abonnement
+              .numberOfTimePlanReservation ??
+            0;
+
+          const nombreUtilise =
+            abonnement
+              ._count
+              .reservations;
+
+          return (
+            nombreUtilise <
+            nombreAutorise
+          );
+        },
+      );
 
     if (existingActive) {
+      const nombreAutorise =
+        existingActive
+          .numberOfTimePlanReservation ??
+        0;
+
+      const nombreUtilise =
+        existingActive
+          ._count
+          .reservations;
+
+      const nombreRestant =
+        Math.max(
+          0,
+          nombreAutorise -
+            nombreUtilise,
+        );
+
       throw new ConflictException({
-        message: 'Vous avez déjà un abonnement actif pour cette spécialité.',
-        messageE: 'You already have an active subscription for this speciality.',
+        message:
+          'Vous avez déjà un abonnement actif pour cette spécialité. ' +
+          `Il vous reste ${nombreRestant} consultation(s).`,
+
+        messageE:
+          'You already have an active subscription for this speciality. ' +
+          `You have ${nombreRestant} consultation(s) remaining.`,
       });
     }
 
-    // Calculer les dates
-    const debutDateObj = dateAtLocalMidnight('Africa/Douala');
-    const endDateObj = addDaysUTC(debutDateObj, pkg.dureeValiditeJours);
+    // =====================================================
+    // 5. Calculer les dates
+    // =====================================================
 
-    // Création atomique - sans medecinId car il n'existe plus dans le modèle
-    const abonnement = await this.prisma.$transaction(async (tx) => {
-      const transaction = await tx.transaction.create({
-        data: { 
-          amount: pkg.prix, 
-          type: TransactionType.ABONNEMENT, 
-          status: TransactionStatus.PENDING 
+    const debutDateObj =
+      dateAtLocalMidnight(
+        'Africa/Douala',
+      );
+
+    const endDateObj =
+      addDaysUTC(
+        debutDateObj,
+        pkg.dureeValiditeJours,
+      );
+
+    // =====================================================
+    // 6. Créer transaction + abonnement
+    // =====================================================
+
+    const abonnement =
+      await this.prisma.$transaction(
+        async (tx) => {
+          const transaction =
+            await tx.transaction.create({
+              data: {
+                amount: pkg.prix,
+                type:
+                  TransactionType.ABONNEMENT,
+                status:
+                  TransactionStatus.PENDING,
+              },
+            });
+
+          return tx.abonnement.create({
+            data: {
+              patientId:
+                dto.patientId,
+
+              packageId:
+                dto.packageId,
+
+              debutDate:
+                debutDateObj,
+
+              endDate:
+                endDateObj,
+
+              amount:
+                pkg.prix,
+
+              numberOfTimePlanReservation:
+                pkg.nombreConsultations,
+
+              transactionId:
+                transaction.transactionId,
+
+              status:
+                AbonnementStatus.PENDING,
+            },
+
+            include: {
+              package: {
+                include: {
+                  speciality: true,
+                },
+              },
+            },
+          });
         },
-      });
+      );
 
-      return tx.abonnement.create({
-        data: {
-          patientId: dto.patientId,
-          packageId: dto.packageId,
-          debutDate: debutDateObj,
-          endDate: endDateObj,
-          amount: pkg.prix,
-          numberOfTimePlanReservation: pkg.nombreConsultations,
-          transactionId: transaction.transactionId,
-          status: AbonnementStatus.PENDING,
-        },
-        include: {
-          package: {
-            include: { speciality: true },
-          },
-        },
-      });
-    });
+    // =====================================================
+    // 7. Notification patient
+    // =====================================================
 
-    // 🔔 NOTIFS
-    const patientTitleFr = 'Souscription à un abonnement';
-    const patientTitleEn = 'Subscription purchase';
-    const patientMsgFr = `Vous avez souscrit au package "${pkg.nom}". Confirmation dans quelques secondes.`;
-    const patientMsgEn = `You subscribed to the package "${pkg.nom}". Confirmation in a few seconds.`;
+    const patientTitleFr =
+      'Souscription à un abonnement';
 
-    // Notifications patient
+    const patientTitleEn =
+      'Subscription purchase';
+
+    const patientMsgFr =
+      `Vous avez souscrit au package "${pkg.nom}". ` +
+      'Confirmation dans quelques secondes.';
+
+    const patientMsgEn =
+      `You subscribed to the package "${pkg.nom}". ` +
+      'Confirmation in a few seconds.';
+
     void this.createNotification(
-      patient.userId, 
-      patientTitleFr, 
-      patientTitleEn, 
-      patientMsgFr, 
-      patientMsgEn
-    ).catch(() => void 0);
+      patient.userId,
+      patientTitleFr,
+      patientTitleEn,
+      patientMsgFr,
+      patientMsgEn,
+    ).catch(
+      () => void 0,
+    );
 
-    // Notifications pour tous les médecins de la spécialité
-    for (const medecin of medecins) {
-      const doctorTitleFr = 'Nouvel abonnement dans votre spécialité';
-      const doctorTitleEn = 'New subscription in your speciality';
-      const doctorMsgFr = `Un patient a souscrit à un abonnement ${pkg.speciality.name}.`;
-      const doctorMsgEn = `A patient subscribed to a ${pkg.speciality.name} package.`;
+    // =====================================================
+    // 8. Notifications médecins
+    // =====================================================
+
+    for (
+      const medecin
+      of medecins
+    ) {
+      const doctorTitleFr =
+        'Nouvel abonnement dans votre spécialité';
+
+      const doctorTitleEn =
+        'New subscription in your speciality';
+
+      const doctorMsgFr =
+        `Un patient a souscrit à un abonnement ${pkg.speciality.name}.`;
+
+      const doctorMsgEn =
+        `A patient subscribed to a ${pkg.speciality.name} package.`;
 
       void this.createNotification(
-        medecin.userId, 
-        doctorTitleFr, 
-        doctorTitleEn, 
-        doctorMsgFr, 
-        doctorMsgEn
-      ).catch(() => void 0);
+        medecin.userId,
+        doctorTitleFr,
+        doctorTitleEn,
+        doctorMsgFr,
+        doctorMsgEn,
+      ).catch(
+        () => void 0,
+      );
 
-      // Expo push si token valide
-      if (isValidExpoToken(medecin.expotoken)) {
+      // Expo push
+      if (
+        isValidExpoToken(
+          medecin.expotoken,
+        )
+      ) {
         void sendExpoPush({
-          to: medecin.expotoken!,
-          sound: 'default',
-          title: bi(doctorTitleFr, doctorTitleEn),
-          body: bi(doctorMsgFr, doctorMsgEn),
-          data: { 
-            kind: 'ABO_NEW', 
-            abonnementId: abonnement.abonnementId, 
-            patientId: patient.userId,
-            specialityId: pkg.specialityId 
+          to:
+            medecin.expotoken!,
+
+          sound:
+            'default',
+
+          title:
+            bi(
+              doctorTitleFr,
+              doctorTitleEn,
+            ),
+
+          body:
+            bi(
+              doctorMsgFr,
+              doctorMsgEn,
+            ),
+
+          data: {
+            kind:
+              'ABO_NEW',
+
+            abonnementId:
+              abonnement.abonnementId,
+
+            patientId:
+              patient.userId,
+
+            specialityId:
+              pkg.specialityId,
           },
-          priority: 'high',
+
+          priority:
+            'high',
         });
       }
     }
 
-    // ⏰ Confirmation différée (simulation paiement)
-    setTimeout(async () => {
-      try {
-        await this.prisma.$transaction([
-          this.prisma.abonnement.update({
-            where: { abonnementId: abonnement.abonnementId },
-            data: { status: AbonnementStatus.CONFIRMED },
-          }),
-          this.prisma.transaction.update({
-            where: { transactionId: abonnement.transactionId! },
-            data: { 
-              status: TransactionStatus.PAID, 
-              paymentId: `TR-ABO-${randomUUID()}` 
-            },
-          }),
-        ]);
+    // =====================================================
+    // 9. Confirmation différée
+    // Simulation paiement
+    // =====================================================
 
-        // Notification de confirmation
-        const confirmTitleFr = 'Abonnement confirmé';
-        const confirmTitleEn = 'Subscription confirmed';
-        const confirmMsgFr = `Votre abonnement "${pkg.nom}" a été confirmé. Bonne consultation !`;
-        const confirmMsgEn = `Your subscription "${pkg.nom}" has been confirmed. Happy consultation!`;
+    setTimeout(
+      async () => {
+        try {
+          await this.prisma.$transaction([
+            this.prisma.abonnement.update({
+              where: {
+                abonnementId:
+                  abonnement.abonnementId,
+              },
 
-        await this.createNotification(
-          patient.userId,
-          confirmTitleFr,
-          confirmTitleEn,
-          confirmMsgFr,
-          confirmMsgEn
-        );
+              data: {
+                status:
+                  AbonnementStatus.CONFIRMED,
+              },
+            }),
 
-      } catch (error) {
-        console.error('Échec confirmation différée abonnement :', error);
-      }
-    }, 10_000);
+            this.prisma.transaction.update({
+              where: {
+                transactionId:
+                  abonnement.transactionId!,
+              },
+
+              data: {
+                status:
+                  TransactionStatus.PAID,
+
+                paymentId:
+                  `TR-ABO-${randomUUID()}`,
+              },
+            }),
+          ]);
+
+          // Notification confirmation
+          const confirmTitleFr =
+            'Abonnement confirmé';
+
+          const confirmTitleEn =
+            'Subscription confirmed';
+
+          const confirmMsgFr =
+            `Votre abonnement "${pkg.nom}" a été confirmé. ` +
+            'Bonne consultation !';
+
+          const confirmMsgEn =
+            `Your subscription "${pkg.nom}" has been confirmed. ` +
+            'Happy consultation!';
+
+          await this.createNotification(
+            patient.userId,
+            confirmTitleFr,
+            confirmTitleEn,
+            confirmMsgFr,
+            confirmMsgEn,
+          );
+        } catch (error) {
+          console.error(
+            'Échec confirmation différée abonnement :',
+            error,
+          );
+        }
+      },
+      10_000,
+    );
 
     return {
-      message: 'Abonnement créé avec succès',
-      messageE: 'Subscription created successfully',
-      messagePaiement: 'Paiement simulé - confirmation dans 10 secondes',
+      message:
+        'Abonnement créé avec succès',
+
+      messageE:
+        'Subscription created successfully',
+
+      messagePaiement:
+        'Paiement simulé - confirmation dans 10 secondes',
+
       abonnement,
     };
   }
 
   /**
-   * Visualiser ses abonnements actifs (patient)
+   * Visualiser ses abonnements actifs
+   * Patient
    */
-  async getActiveSubscriptions(userId: number, page: number = 1, limit: number = 10) {
-    if (!userId || userId <= 0) {
+  async getActiveSubscriptions(
+    userId: number,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    if (
+      !userId ||
+      userId <= 0
+    ) {
       throw new BadRequestException({
-        message: 'ID utilisateur invalide',
-        messageE: 'Invalid user ID',
+        message:
+          'ID utilisateur invalide',
+
+        messageE:
+          'Invalid user ID',
       });
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { userId: userId },
-      select: { userType: true },
-    });
+    const user =
+      await this.prisma.user.findUnique({
+        where: {
+          userId,
+        },
+
+        select: {
+          userType: true,
+        },
+      });
 
     if (!user) {
-      throw new NotFoundException({ 
-        message: 'Utilisateur non trouvé', 
-        messageE: 'User not found' 
+      throw new NotFoundException({
+        message:
+          'Utilisateur non trouvé',
+
+        messageE:
+          'User not found',
       });
     }
 
-    if (user.userType !== UserType.PATIENT) {
+    if (
+      user.userType !==
+      UserType.PATIENT
+    ) {
       throw new ForbiddenException({
-        message: 'Seuls les patients peuvent visualiser leurs abonnements actifs',
-        messageE: 'Only patients can view their active subscriptions',
+        message:
+          'Seuls les patients peuvent visualiser leurs abonnements actifs',
+
+        messageE:
+          'Only patients can view their active subscriptions',
       });
     }
 
-    const today = dateAtLocalMidnight('Africa/Douala');
-    const skip = (page - 1) * limit;
+    const today =
+      dateAtLocalMidnight(
+        'Africa/Douala',
+      );
+
+    const skip =
+      (page - 1) *
+      limit;
 
     const where = {
-      patientId: userId,
-      status: AbonnementStatus.CONFIRMED,
-      endDate: { gte: today },
+      patientId:
+        userId,
+
+      status:
+        AbonnementStatus.CONFIRMED,
+
+      endDate: {
+        gte: today,
+      },
     };
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.abonnement.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          package: {
-            include: { speciality: true },
+    const [
+      items,
+      total,
+    ] =
+      await this.prisma.$transaction([
+        this.prisma.abonnement.findMany({
+          where,
+
+          skip,
+
+          take:
+            limit,
+
+          include: {
+            package: {
+              include: {
+                speciality: true,
+              },
+            },
+
+            _count: {
+              select: {
+                reservations: true,
+              },
+            },
           },
-        },
-        orderBy: { endDate: 'asc' },
-      }),
-      this.prisma.abonnement.count({ where }),
-    ]);
 
-    // Compter les réservations utilisées pour chaque abonnement
-    const itemsWithUsage = await Promise.all(items.map(async (abo) => {
-      const reservationsCount = await this.prisma.reservation.count({
-        where: {
-          abonnementId: abo.abonnementId,
-          status: { in: ['COMPLETED', 'PENDING'] },
-        },
-      });
+          orderBy: {
+            endDate: 'asc',
+          },
+        }),
 
-      return {
-        ...abo,
-        consultationsUtilisees: reservationsCount,
-        consultationsRestantes: (abo.numberOfTimePlanReservation || 0) - reservationsCount,
-      };
-    }));
+        this.prisma.abonnement.count({
+          where,
+        }),
+      ]);
+
+    // =====================================================
+    // Toute réservation consomme une consultation
+    // =====================================================
+
+    const itemsWithUsage =
+      items.map(
+        (abo) => {
+          const reservationsCount =
+            abo._count.reservations;
+
+          const consultationsTotal =
+            abo
+              .numberOfTimePlanReservation ??
+            0;
+
+          const consultationsRestantes =
+            Math.max(
+              0,
+              consultationsTotal -
+                reservationsCount,
+            );
+
+          const {
+            _count,
+            ...abonnementData
+          } = abo;
+
+          return {
+            ...abonnementData,
+
+            consultationsUtilisees:
+              reservationsCount,
+
+            consultationsRestantes,
+
+            quotaEpuise:
+              consultationsRestantes ===
+              0,
+          };
+        },
+      );
 
     return {
-      message: 'Abonnements actifs récupérés avec succès',
-      messageE: 'Active subscriptions retrieved successfully',
-      data: itemsWithUsage,
+      message:
+        'Abonnements actifs récupérés avec succès',
+
+      messageE:
+        'Active subscriptions retrieved successfully',
+
+      data:
+        itemsWithUsage,
+
       meta: {
         total,
         page,
         limit,
-        pageCount: Math.ceil(total / limit),
+
+        pageCount:
+          Math.ceil(
+            total /
+              limit,
+          ),
       },
     };
   }
 
   /**
-   * Consulter l'historique des abonnements (patient)
+   * Consulter l'historique des abonnements
+   * Patient
    */
-  async getSubscriptionHistory(userId: number, query: QueryAbonnementDto) {
-    if (!userId || userId <= 0) {
+  async getSubscriptionHistory(
+    userId: number,
+    query: QueryAbonnementDto,
+  ) {
+    if (
+      !userId ||
+      userId <= 0
+    ) {
       throw new BadRequestException({
-        message: 'ID utilisateur invalide',
-        messageE: 'Invalid user ID',
+        message:
+          'ID utilisateur invalide',
+
+        messageE:
+          'Invalid user ID',
       });
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { userId: userId },
-      select: { userType: true },
-    });
+    const user =
+      await this.prisma.user.findUnique({
+        where: {
+          userId,
+        },
+
+        select: {
+          userType: true,
+        },
+      });
 
     if (!user) {
-      throw new NotFoundException({ 
-        message: 'Utilisateur non trouvé', 
-        messageE: 'User not found' 
+      throw new NotFoundException({
+        message:
+          'Utilisateur non trouvé',
+
+        messageE:
+          'User not found',
       });
     }
 
-    if (user.userType !== UserType.PATIENT) {
+    if (
+      user.userType !==
+      UserType.PATIENT
+    ) {
       throw new ForbiddenException({
-        message: 'Seuls les patients peuvent consulter leur historique d\'abonnements',
-        messageE: 'Only patients can view their subscription history',
+        message:
+          'Seuls les patients peuvent consulter leur historique d\'abonnements',
+
+        messageE:
+          'Only patients can view their subscription history',
       });
     }
 
-    const page = query.page || 1;
-    const limit = query.limit || 10;
-    const skip = (page - 1) * limit;
+    const page =
+      query.page ||
+      1;
 
-    let where: any = {
-      patientId: userId,
+    const limit =
+      query.limit ||
+      10;
+
+    const skip =
+      (page - 1) *
+      limit;
+
+    const where: any = {
+      patientId:
+        userId,
     };
 
-    if (query.status) {
-      where.status = query.status;
+    if (
+      query.status
+    ) {
+      where.status =
+        query.status;
     }
 
-    if (query.packageId) {
-      where.packageId = query.packageId;
+    if (
+      query.packageId
+    ) {
+      where.packageId =
+        query.packageId;
     }
 
-    if (query.specialityId) {
+    if (
+      query.specialityId
+    ) {
       where.package = {
-        specialityId: query.specialityId,
+        specialityId:
+          query.specialityId,
       };
     }
 
-    if (query.date) {
-      const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
-      where.debutDate = { gte, lt };
+    if (
+      query.date
+    ) {
+      const {
+        gte,
+        lt,
+      } =
+        localDayRange(
+          query.date,
+          'Africa/Douala',
+        );
+
+      where.debutDate = {
+        gte,
+        lt,
+      };
     }
 
-    if (query.q && query.q.trim()) {
-      const q = query.q.trim();
+    if (
+      query.q &&
+      query.q.trim()
+    ) {
+      const q =
+        query.q.trim();
+
       where.OR = [
-        { package: { nom: { contains: q } } },
+        {
+          package: {
+            nom: {
+              contains: q,
+            },
+          },
+        },
       ];
     }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.abonnement.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          package: {
-            include: { speciality: true },
+    const [
+      items,
+      total,
+    ] =
+      await this.prisma.$transaction([
+        this.prisma.abonnement.findMany({
+          where,
+
+          skip,
+
+          take:
+            limit,
+
+          include: {
+            package: {
+              include: {
+                speciality:
+                  true,
+              },
+            },
+
+            transaction:
+              true,
+
+            _count: {
+              select: {
+                reservations:
+                  true,
+              },
+            },
           },
-          transaction: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.abonnement.count({ where }),
-    ]);
 
-    const itemsWithUsage = await Promise.all(items.map(async (abo) => {
-      const reservationsCount = await this.prisma.reservation.count({
-        where: {
-          abonnementId: abo.abonnementId,
-        },
-      });
+          orderBy: {
+            createdAt:
+              'desc',
+          },
+        }),
 
-      return {
-        ...abo,
-        consultationsUtilisees: reservationsCount,
-        consultationsRestantes: (abo.numberOfTimePlanReservation || 0) - reservationsCount,
-      };
-    }));
+        this.prisma.abonnement.count({
+          where,
+        }),
+      ]);
+
+    const itemsWithUsage =
+      items.map(
+        (abo) => {
+          const reservationsCount =
+            abo._count.reservations;
+
+          const consultationsTotal =
+            abo
+              .numberOfTimePlanReservation ??
+            0;
+
+          const consultationsRestantes =
+            Math.max(
+              0,
+              consultationsTotal -
+                reservationsCount,
+            );
+
+          const {
+            _count,
+            ...abonnementData
+          } = abo;
+
+          return {
+            ...abonnementData,
+
+            consultationsUtilisees:
+              reservationsCount,
+
+            consultationsRestantes,
+
+            quotaEpuise:
+              consultationsRestantes ===
+              0,
+          };
+        },
+      );
 
     return {
-      message: 'Historique des abonnements récupéré avec succès',
-      messageE: 'Subscription history retrieved successfully',
-      data: itemsWithUsage,
+      message:
+        'Historique des abonnements récupéré avec succès',
+
+      messageE:
+        'Subscription history retrieved successfully',
+
+      data:
+        itemsWithUsage,
+
       meta: {
         total,
         page,
         limit,
-        pageCount: Math.ceil(total / limit),
+
+        pageCount:
+          Math.ceil(
+            total /
+              limit,
+          ),
       },
     };
   }
 
   /**
-   * Médecin: Voir les abonnements de sa spécialité
+   * Médecin :
+   * voir les abonnements de sa spécialité
    */
-  async getSubscriptionsBySpeciality(userId: number, query: QueryAbonnementDto) {
-    if (!userId || userId <= 0) {
+  async getSubscriptionsBySpeciality(
+    userId: number,
+    query: QueryAbonnementDto,
+  ) {
+    if (
+      !userId ||
+      userId <= 0
+    ) {
       throw new BadRequestException({
-        message: 'ID médecin invalide',
-        messageE: 'Invalid doctor ID',
+        message:
+          'ID médecin invalide',
+
+        messageE:
+          'Invalid doctor ID',
       });
     }
 
-    const medecin = await this.prisma.user.findUnique({
-      where: { userId: userId },
-      include: { speciality: true },
-    });
+    const medecin =
+      await this.prisma.user.findUnique({
+        where: {
+          userId,
+        },
 
-    if (!medecin || medecin.userType !== UserType.MEDECIN) {
+        include: {
+          speciality:
+            true,
+        },
+      });
+
+    if (
+      !medecin ||
+      medecin.userType !==
+        UserType.MEDECIN
+    ) {
       throw new NotFoundException({
-        message: 'Médecin non trouvé',
-        messageE: 'Doctor not found',
+        message:
+          'Médecin non trouvé',
+
+        messageE:
+          'Doctor not found',
       });
     }
 
-    if (!medecin.speciality) {
+    if (
+      !medecin.speciality
+    ) {
       throw new BadRequestException({
-        message: 'Ce médecin n\'a pas de spécialité associée',
-        messageE: 'This doctor has no associated speciality',
+        message:
+          'Ce médecin n\'a pas de spécialité associée',
+
+        messageE:
+          'This doctor has no associated speciality',
       });
     }
 
-    const page = query.page || 1;
-    const limit = query.limit || 10;
-    const skip = (page - 1) * limit;
+    const page =
+      query.page ||
+      1;
 
-    let where: any = {
+    const limit =
+      query.limit ||
+      10;
+
+    const skip =
+      (page - 1) *
+      limit;
+
+    const where: any = {
       package: {
-        specialityId: medecin.specialityId,
+        specialityId:
+          medecin.specialityId,
       },
     };
 
-    if (query.status) {
-      where.status = query.status;
+    if (
+      query.status
+    ) {
+      where.status =
+        query.status;
     }
 
-    if (query.patientId) {
-      where.patientId = query.patientId;
+    if (
+      query.patientId
+    ) {
+      where.patientId =
+        query.patientId;
     }
 
-    if (query.active === true) {
-      const today = dateAtLocalMidnight('Africa/Douala');
-      where.endDate = { gte: today };
-      where.status = AbonnementStatus.CONFIRMED;
+    if (
+      query.active === true
+    ) {
+      const today =
+        dateAtLocalMidnight(
+          'Africa/Douala',
+        );
+
+      where.endDate = {
+        gte: today,
+      };
+
+      where.status =
+        AbonnementStatus.CONFIRMED;
     }
 
-    if (query.date) {
-      const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
-      where.debutDate = { gte, lt };
+    if (
+      query.date
+    ) {
+      const {
+        gte,
+        lt,
+      } =
+        localDayRange(
+          query.date,
+          'Africa/Douala',
+        );
+
+      where.debutDate = {
+        gte,
+        lt,
+      };
     }
 
-    if (query.q && query.q.trim()) {
-      const q = query.q.trim();
+    if (
+      query.q &&
+      query.q.trim()
+    ) {
+      const q =
+        query.q.trim();
+
       where.patient = {
         OR: [
-          { firstName: { contains: q } },
-          { lastName: { contains: q } },
+          {
+            firstName: {
+              contains:
+                q,
+            },
+          },
+
+          {
+            lastName: {
+              contains:
+                q,
+            },
+          },
         ],
       };
     }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.abonnement.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          patient: {
-            select: { userId: true, firstName: true, lastName: true, email: true, phone: true, profile: true },
-          },
-          package: {
-            include: { speciality: true },
-          },
-          transaction: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.abonnement.count({ where }),
-    ]);
+    const [
+      items,
+      total,
+    ] =
+      await this.prisma.$transaction([
+        this.prisma.abonnement.findMany({
+          where,
 
-    const itemsWithUsage = await Promise.all(items.map(async (abo) => {
-      const reservationsCount = await this.prisma.reservation.count({
-        where: {
-          abonnementId: abo.abonnementId,
-          medecinId: userId,
-        },
-      });
+          skip,
 
-      return {
-        ...abo,
-        consultationsUtiliseesAvecMoi: reservationsCount,
-        consultationsRestantes: (abo.numberOfTimePlanReservation || 0) - reservationsCount,
-      };
-    }));
+          take:
+            limit,
+
+          include: {
+            patient: {
+              select: {
+                userId:
+                  true,
+
+                firstName:
+                  true,
+
+                lastName:
+                  true,
+
+                email:
+                  true,
+
+                phone:
+                  true,
+
+                profile:
+                  true,
+              },
+            },
+
+            package: {
+              include: {
+                speciality:
+                  true,
+              },
+            },
+
+            transaction:
+              true,
+
+            _count: {
+              select: {
+                reservations:
+                  true,
+              },
+            },
+          },
+
+          orderBy: {
+            createdAt:
+              'desc',
+          },
+        }),
+
+        this.prisma.abonnement.count({
+          where,
+        }),
+      ]);
+
+    // =====================================================
+    // IMPORTANT :
+    //
+    // consultationsRestantes doit utiliser TOUTES les
+    // réservations de l'abonnement et PAS uniquement les
+    // réservations effectuées avec ce médecin.
+    //
+    // Car l'abonnement appartient à une spécialité.
+    // =====================================================
+
+    const itemsWithUsage =
+      await Promise.all(
+        items.map(
+          async (abo) => {
+            const totalReservations =
+              abo._count.reservations;
+
+            // Information complémentaire :
+            // combien ont été réalisées avec CE médecin.
+            const reservationsAvecMoi =
+              await this.prisma.reservation.count({
+                where: {
+                  abonnementId:
+                    abo.abonnementId,
+
+                  medecinId:
+                    userId,
+                },
+              });
+
+            const consultationsTotal =
+              abo
+                .numberOfTimePlanReservation ??
+              0;
+
+            const consultationsRestantes =
+              Math.max(
+                0,
+                consultationsTotal -
+                  totalReservations,
+              );
+
+            const {
+              _count,
+              ...abonnementData
+            } = abo;
+
+            return {
+              ...abonnementData,
+
+              consultationsUtilisees:
+                totalReservations,
+
+              consultationsUtiliseesAvecMoi:
+                reservationsAvecMoi,
+
+              consultationsRestantes,
+
+              quotaEpuise:
+                consultationsRestantes ===
+                0,
+            };
+          },
+        ),
+      );
 
     return {
-      message: 'Abonnements de la spécialité récupérés avec succès',
-      messageE: 'Speciality subscriptions retrieved successfully',
-      data: itemsWithUsage,
+      message:
+        'Abonnements de la spécialité récupérés avec succès',
+
+      messageE:
+        'Speciality subscriptions retrieved successfully',
+
+      data:
+        itemsWithUsage,
+
       meta: {
         total,
         page,
         limit,
-        pageCount: Math.ceil(total / limit),
+
+        pageCount:
+          Math.ceil(
+            total /
+              limit,
+          ),
       },
     };
   }
@@ -557,152 +2098,367 @@ export class AbonnementsService {
   /**
    * Obtenir les détails d'un abonnement
    */
-async findOne(id: number) {
-  const abonnement = await this.prisma.abonnement.findUnique({
-    where: { abonnementId: id },
-    include: {
-      patient: {
-        select: { 
-          userId: true, 
-          firstName: true, 
-          lastName: true, 
-          email: true, 
-          phone: true, 
-          profile: true,
-          createdAt: true
+  async findOne(
+    id: number,
+  ) {
+    const abonnement =
+      await this.prisma.abonnement.findUnique({
+        where: {
+          abonnementId:
+            id,
         },
-      },
-      package: {
-        include: { 
-          speciality: true 
-        },
-      },
-      transaction: true,
-    },
-  });
 
-  if (!abonnement) {
-    throw new NotFoundException({
-      message: `Abonnement d'ID ${id} introuvable.`,
-      messageE: `Subscription with ID ${id} not found.`,
-    });
+        include: {
+          patient: {
+            select: {
+              userId:
+                true,
+
+              firstName:
+                true,
+
+              lastName:
+                true,
+
+              email:
+                true,
+
+              phone:
+                true,
+
+              profile:
+                true,
+
+              createdAt:
+                true,
+            },
+          },
+
+          package: {
+            include: {
+              speciality:
+                true,
+            },
+          },
+
+          transaction:
+            true,
+
+          _count: {
+            select: {
+              reservations:
+                true,
+            },
+          },
+        },
+      });
+
+    if (
+      !abonnement
+    ) {
+      throw new NotFoundException({
+        message:
+          `Abonnement d'ID ${id} introuvable.`,
+
+        messageE:
+          `Subscription with ID ${id} not found.`,
+      });
+    }
+
+    // =====================================================
+    // Toute réservation consomme une consultation
+    // =====================================================
+
+    const reservationsCount =
+      abonnement
+        ._count
+        .reservations;
+
+    const consultationsTotal =
+      abonnement
+        .numberOfTimePlanReservation ??
+      0;
+
+    const consultationsRestantes =
+      Math.max(
+        0,
+        consultationsTotal -
+          reservationsCount,
+      );
+
+    const {
+      _count,
+      ...abonnementData
+    } = abonnement;
+
+    return {
+      message:
+        'Abonnement récupéré avec succès',
+
+      messageE:
+        'Subscription retrieved successfully',
+
+      data: {
+        ...abonnementData,
+
+        consultationsUtilisees:
+          reservationsCount,
+
+        consultationsRestantes,
+
+        quotaEpuise:
+          consultationsRestantes ===
+          0,
+      },
+    };
   }
 
-  // Compter les réservations utilisées
-  const reservationsCount = await this.prisma.reservation.count({
-    where: {
-      abonnementId: id,
-    },
-  });
-
-  // Récupérer tous les patients qui ont un abonnement actif pour ce même package
-  const patientsAvecAbonnementActif = await this.prisma.abonnement.findMany({
-    where: {
-      packageId: abonnement.packageId,
-      status: 'CONFIRMED',
-      endDate: { gte: new Date() },
-      abonnementId: { not: id } // Exclure l'abonnement actuel
-    },
-    include: {
-      patient: {
-        select: {
-          userId: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          profile: true,
-        }
-      }
-    },
-    take: 10, // Limiter à 10 patients
-  });
-
-  return {
-    message: 'Abonnement récupéré avec succès',
-    messageE: 'Subscription retrieved successfully',
-    data: {
-      ...abonnement,
-      consultationsUtilisees: reservationsCount,
-      consultationsRestantes: (abonnement.numberOfTimePlanReservation || 0) - reservationsCount,
-    },
-  };
-}
   /**
-   * Lister tous les abonnements (admin)
+   * Lister tous les abonnements
+   * Admin
    */
-  async findAll(query: QueryAbonnementDto) {
-    const page = query.page || 1;
-    const limit = query.limit || 10;
-    const skip = (page - 1) * limit;
+  async findAll(
+    query: QueryAbonnementDto,
+  ) {
+    const page =
+      query.page ||
+      1;
+
+    const limit =
+      query.limit ||
+      10;
+
+    const skip =
+      (page - 1) *
+      limit;
 
     const where: any = {};
 
-    if (query.patientId) {
-      where.patientId = query.patientId;
+    if (
+      query.patientId
+    ) {
+      where.patientId =
+        query.patientId;
     }
 
-    if (query.packageId) {
-      where.packageId = query.packageId;
+    if (
+      query.packageId
+    ) {
+      where.packageId =
+        query.packageId;
     }
 
-    if (query.specialityId) {
+    if (
+      query.specialityId
+    ) {
       where.package = {
-        specialityId: query.specialityId,
+        specialityId:
+          query.specialityId,
       };
     }
 
-    if (query.status) {
-      where.status = query.status;
+    if (
+      query.status
+    ) {
+      where.status =
+        query.status;
     }
 
-    if (query.date) {
-      const { gte, lt } = localDayRange(query.date, 'Africa/Douala');
-      where.debutDate = { gte, lt };
+    if (
+      query.date
+    ) {
+      const {
+        gte,
+        lt,
+      } =
+        localDayRange(
+          query.date,
+          'Africa/Douala',
+        );
+
+      where.debutDate = {
+        gte,
+        lt,
+      };
     }
 
-    if (query.q && query.q.trim()) {
-      const q = query.q.trim();
+    if (
+      query.q &&
+      query.q.trim()
+    ) {
+      const q =
+        query.q.trim();
+
       where.OR = [
-        { patient: { OR: [{ firstName: { contains: q } }, { lastName: { contains: q } }] } },
-        { package: { nom: { contains: q } } },
+        {
+          patient: {
+            OR: [
+              {
+                firstName: {
+                  contains:
+                    q,
+                },
+              },
+
+              {
+                lastName: {
+                  contains:
+                    q,
+                },
+              },
+            ],
+          },
+        },
+
+        {
+          package: {
+            nom: {
+              contains:
+                q,
+            },
+          },
+        },
       ];
     }
 
-    if (query.active === true) {
-      const today = dateAtLocalMidnight('Africa/Douala');
-      where.endDate = { gte: today };
-      where.status = AbonnementStatus.CONFIRMED;
+    if (
+      query.active === true
+    ) {
+      const today =
+        dateAtLocalMidnight(
+          'Africa/Douala',
+        );
+
+      where.endDate = {
+        gte: today,
+      };
+
+      where.status =
+        AbonnementStatus.CONFIRMED;
     }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.abonnement.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          patient: {
-            select: { userId: true, firstName: true, lastName: true, email: true, profile: true },
+    const [
+      items,
+      total,
+    ] =
+      await this.prisma.$transaction([
+        this.prisma.abonnement.findMany({
+          where,
+
+          skip,
+
+          take:
+            limit,
+
+          include: {
+            patient: {
+              select: {
+                userId:
+                  true,
+
+                firstName:
+                  true,
+
+                lastName:
+                  true,
+
+                email:
+                  true,
+
+                profile:
+                  true,
+              },
+            },
+
+            package: {
+              include: {
+                speciality:
+                  true,
+              },
+            },
+
+            transaction:
+              true,
+
+            _count: {
+              select: {
+                reservations:
+                  true,
+              },
+            },
           },
-          package: {
-            include: { speciality: true },
+
+          orderBy: {
+            createdAt:
+              'desc',
           },
-          transaction: true,
+        }),
+
+        this.prisma.abonnement.count({
+          where,
+        }),
+      ]);
+
+    const itemsWithUsage =
+      items.map(
+        (abo) => {
+          const reservationsCount =
+            abo
+              ._count
+              .reservations;
+
+          const consultationsTotal =
+            abo
+              .numberOfTimePlanReservation ??
+            0;
+
+          const consultationsRestantes =
+            Math.max(
+              0,
+              consultationsTotal -
+                reservationsCount,
+            );
+
+          const {
+            _count,
+            ...abonnementData
+          } = abo;
+
+          return {
+            ...abonnementData,
+
+            consultationsUtilisees:
+              reservationsCount,
+
+            consultationsRestantes,
+
+            quotaEpuise:
+              consultationsRestantes ===
+              0,
+          };
         },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.abonnement.count({ where }),
-    ]);
+      );
 
     return {
-      message: 'Abonnements récupérés avec succès',
-      messageE: 'Subscriptions retrieved successfully',
-      data: items,
+      message:
+        'Abonnements récupérés avec succès',
+
+      messageE:
+        'Subscriptions retrieved successfully',
+
+      data:
+        itemsWithUsage,
+
       meta: {
         total,
         page,
         limit,
-        pageCount: Math.ceil(total / limit),
+
+        pageCount:
+          Math.ceil(
+            total /
+              limit,
+          ),
       },
     };
   }
@@ -710,63 +2466,127 @@ async findOne(id: number) {
   /**
    * Confirmer un abonnement manuellement
    */
-  async confirm(id: number): Promise<any> {
-    const abo = await this.prisma.abonnement.findUnique({ 
-      where: { abonnementId: id },
-      include: { package: true, patient: true }
-    });
-    
+  async confirm(
+    id: number,
+  ): Promise<any> {
+    const abo =
+      await this.prisma.abonnement.findUnique({
+        where: {
+          abonnementId:
+            id,
+        },
+
+        include: {
+          package:
+            true,
+
+          patient:
+            true,
+        },
+      });
+
     if (!abo) {
-      throw new NotFoundException({ 
-        message: `Abonnement ${id} introuvable.`, 
-        messageE: `Subscription ${id} not found.` 
+      throw new NotFoundException({
+        message:
+          `Abonnement ${id} introuvable.`,
+
+        messageE:
+          `Subscription ${id} not found.`,
       });
     }
-    
-    if (abo.status === AbonnementStatus.CONFIRMED) {
-      return { 
-        message: 'Abonnement déjà confirmé.', 
-        messageE: 'Subscription already confirmed.', 
-        abonnement: abo 
+
+    if (
+      abo.status ===
+      AbonnementStatus.CONFIRMED
+    ) {
+      return {
+        message:
+          'Abonnement déjà confirmé.',
+
+        messageE:
+          'Subscription already confirmed.',
+
+        abonnement:
+          abo,
       };
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const updAbo = await tx.abonnement.update({
-        where: { abonnementId: id }, 
-        data: { status: AbonnementStatus.CONFIRMED },
-      });
-      
-      if (updAbo.transactionId) {
-        await tx.transaction.update({
-          where: { transactionId: updAbo.transactionId },
-          data: { status: TransactionStatus.PAID, paymentId: `TR-ABO-${randomUUID()}` },
-        });
-      }
-      
-      return updAbo;
-    });
+    const updated =
+      await this.prisma.$transaction(
+        async (tx) => {
+          const updAbo =
+            await tx.abonnement.update({
+              where: {
+                abonnementId:
+                  id,
+              },
 
-    // Notification de confirmation
-    if (abo.patient) {
-      const confirmTitleFr = 'Abonnement confirmé';
-      const confirmTitleEn = 'Subscription confirmed';
-      const confirmMsgFr = `Votre abonnement "${abo.package?.nom}" a été confirmé.`;
-      const confirmMsgEn = `Your subscription "${abo.package?.nom}" has been confirmed.`;
+              data: {
+                status:
+                  AbonnementStatus.CONFIRMED,
+              },
+            });
+
+          if (
+            updAbo.transactionId
+          ) {
+            await tx.transaction.update({
+              where: {
+                transactionId:
+                  updAbo.transactionId,
+              },
+
+              data: {
+                status:
+                  TransactionStatus.PAID,
+
+                paymentId:
+                  `TR-ABO-${randomUUID()}`,
+              },
+            });
+          }
+
+          return updAbo;
+        },
+      );
+
+    // =====================================================
+    // Notification confirmation
+    // =====================================================
+
+    if (
+      abo.patient
+    ) {
+      const confirmTitleFr =
+        'Abonnement confirmé';
+
+      const confirmTitleEn =
+        'Subscription confirmed';
+
+      const confirmMsgFr =
+        `Votre abonnement "${abo.package?.nom}" a été confirmé.`;
+
+      const confirmMsgEn =
+        `Your subscription "${abo.package?.nom}" has been confirmed.`;
 
       await this.createNotification(
         abo.patient.userId,
         confirmTitleFr,
         confirmTitleEn,
         confirmMsgFr,
-        confirmMsgEn
+        confirmMsgEn,
       );
     }
 
     return {
-      message: 'Abonnement confirmé avec succès.',
-      messageE: 'Subscription confirmed successfully.',
-      abonnement: updated,
+      message:
+        'Abonnement confirmé avec succès.',
+
+      messageE:
+        'Subscription confirmed successfully.',
+
+      abonnement:
+        updated,
     };
   }
 }

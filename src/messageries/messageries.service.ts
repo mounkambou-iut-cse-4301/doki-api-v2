@@ -533,9 +533,9 @@ export class MessageriesService {
       throw new ForbiddenException(`Vous n'êtes pas participant de cette conversation.`);
     }
 
-    if (dto.senderId === conv.patientId) {
-      await this.assertPatientMessagingWindow(conv.medecinId, conv.patientId);
-    }
+    // if (dto.senderId === conv.patientId) {
+    //   await this.assertPatientMessagingWindow(conv.medecinId, conv.patientId);
+    // }
 
     const questions = (fiche.questions as any[]) || [];
     const qMap = new Map(questions.map(q => [q.id, q]));

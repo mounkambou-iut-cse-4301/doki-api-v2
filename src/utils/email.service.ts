@@ -12,8 +12,6 @@ export class EmailService {
   async sendEmail(subject: string, message: string, toEmail: string): Promise<void> {
     const user = this.config.get<string>('EMAIL');
     const pass = this.config.get<string>('EMAIL_PASS');
-    const fromName = this.config.get<string>('EMAIL_FROM_NAME') ?? 'Dokita';
-    const replyTo = this.config.get<string>('EMAIL_REPLY_TO');
 
     if (!user || !pass) {
       this.logger.error('⚠️ Email credentials missing');
@@ -34,8 +32,8 @@ export class EmailService {
     try {
       await transporter.verify();
       const info = await transporter.sendMail({
-        from: `${fromName} <${user}>`,
-        replyTo: replyTo ?? 'no-reply@dokita.com',
+        from: `"Dokita (ne pas répondre)" <${user}>`,
+        replyTo: 'no-reply@dokita.com',
         to: toEmail,
         subject,
         text: message,

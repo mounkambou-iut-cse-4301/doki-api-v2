@@ -32,7 +32,7 @@ export class EmailService {
     try {
       await transporter.verify();
       const info = await transporter.sendMail({
-        from: `"Dokita (ne pas répondre)" <${user}>`,
+        from: `"No-reply Dokita" <${user}>`,
         replyTo: 'no-reply@dokita.com',
         to: toEmail,
         subject,

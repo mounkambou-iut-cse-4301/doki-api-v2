@@ -171,8 +171,14 @@ export function ApiMistidracsSummary() {
   return applyDecorators(
     ApiBearerAuth('JWT-auth'),
     ApiOperation({ 
-      summary: 'Générer un résumé MISTIDRACS',
-      description: 'Génère un résumé structuré selon le format MISTIDRACS (Mode, Irradiation, Siège, Type, Intensité, Durée, Rythme, Antécédents, Circonstances, Signes)'
+      summary: 'Générer un résumé MISTIDRACS (IA)',
+      description:
+        'Génère un résumé MISTIDRACS **réellement produit par le modèle IA** (Mode, Irradiation, Siège, Type, Intensité, Durée, Rythme, Antécédents, Circonstances, Signes). ' +
+        'La réponse contient deux champs distincts : `summary` (résumé clinique) et `drapeauRouge` (alertes cliniques réservées au médecin). ' +
+        'Par défaut le fournisseur est **gemini** ; utilisez `?provider=openai` pour OpenAI. ' +
+        'Les prompts MISTIDRACS ne changent pas selon le fournisseur. ' +
+        'Les réponses sont enrichies des libellés de questions/options avant envoi à l\'IA. ' +
+        'En cas d\'erreur du service IA (souscription, quota, limite de débit, clé invalide...), le statut et le message réels du fournisseur sont retournés tels quels.'
     }),
     ApiParam({
       name: 'conversationId',
@@ -183,27 +189,33 @@ export function ApiMistidracsSummary() {
     ApiQuery({
       name: 'provider',
       required: false,
-      enum: ['openai', 'gemini'],
-      description: 'Fournisseur AI à utiliser'
+      enum: ['gemini', 'openai'],
+      description: 'Fournisseur IA (défaut : gemini)'
+    }),
+    ApiQuery({
+      name: 'ficheId',
+      required: false,
+      type: Number,
+      description: 'Optionnel. Limite le résumé MISTIDRACS à cette fiche uniquement (sinon toutes les fiches de la conversation sont agrégées)'
     }),
     ApiResponse({
       status: 200,
-      description: 'Résumé MISTIDRACS généré',
+      description: 'Résumé MISTIDRACS généré par l\'IA',
       schema: {
         example: {
-          mistidracs: {
-            mode: "apparue progressivement",
-            irradiation: "avec irradiation vers le bras",
-            siege: "thoracique gauche",
-            type: "serrement",
-            intensite: "7/10",
-            duree: "depuis 3 heures",
-            rythme: "permanent",
-            antecedents: "HTA",
-            circonstances: "au repos",
-            signes: "sueurs, nausées"
-          },
-          raw: "Douleur thoracique gauche en serrement, apparue progressivement il y a 3 heures..."
+          conversationId: 5,
+          summary: "Le patient présente une douleur thoracique gauche en serrement, apparue progressivement il y a 3 heures...",
+          drapeauRouge: "Douleur thoracique chez un sujet à risque cardiovasculaire : vigilance clinique particulière recommandée."
+        }
+      }
+    }),
+    ApiResponse({
+      status: 502,
+      description: 'Erreur du fournisseur IA (le statut/message réels du fournisseur sont propagés, ex. 429 quota, 402 facturation, 401 clé invalide)',
+      schema: {
+        example: {
+          statusCode: 429,
+          message: 'You exceeded your current quota, please check your plan and billing details.'
         }
       }
     })

@@ -1,7 +1,7 @@
 
 // src/messageries/messageries.service.ts
 import {
-  BadRequestException, ForbiddenException, Injectable, NotFoundException,
+  BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SendDmMessageDto } from './dto/send-dm-message.dto';
@@ -1144,9 +1144,18 @@ export class MessageriesService {
     );
   }
 
-  async generateConversationSummaryMistidracs(conversationId: number) {
-    const fiche = await this.prisma.fiche.findFirst({
+  async generateConversationMistidracs(
+    conversationId: number,
+    provider: AiProvider = AiProvider.GEMINI,
+    ficheId?: number,
+  ) {
+    if (ficheId !== undefined && (Number.isNaN(ficheId) || ficheId <= 0)) {
+      throw new BadRequestException('ficheId doit être un entier valide');
+    }
+
+    const fiches = await this.prisma.fiche.findMany({
       where: {
+        ...(ficheId ? { ficheId } : {}),
         requests: {
           some: {
             conversationId,
@@ -1155,40 +1164,137 @@ export class MessageriesService {
       },
       select: {
         ficheId: true,
+        title: true,
+        questions: true,
         responses: true,
       },
     });
 
-    if (!fiche || !Array.isArray(fiche.responses)) {
-      throw new NotFoundException('Aucune réponse de fiche trouvée');
+    if (!fiches.length) {
+      throw new NotFoundException(
+        ficheId
+          ? `Fiche ${ficheId} introuvable pour cette conversation`
+          : 'Aucune fiche trouvée pour cette conversation',
+      );
     }
 
-    const payload = fiche.responses;
+    const payload = fiches
+      .map((fiche) => {
+        const responses = (
+          Array.isArray(fiche.responses) ? fiche.responses : []
+        ).filter((r: any) => r?.conversationId === conversationId);
 
-    return this.openai.generateMistidracsSummary(
-      conversationId,
-      payload,
-    );
+        return { fiche, responses };
+      })
+      .filter(({ responses }) => responses.length)
+      .map(({ fiche, responses }) =>
+        this.buildMistidracsPayload(fiche, responses),
+      );
+
+    if (!payload.length) {
+      throw new NotFoundException(
+        'Aucune réponse de fiche enregistrée pour cette conversation',
+      );
+    }
+
+    try {
+      if (provider === AiProvider.OPENAI) {
+        return await this.openai.generateMistidracsSummary(
+          conversationId,
+          payload,
+        );
+      }
+
+      return await this.gemini.generateMistidracsSummary(
+        conversationId,
+        payload,
+      );
+    } catch (e) {
+      throw this.toAiHttpException(e);
+    }
   }
 
-  async generateConversationMistidracsGemini(conversationId: number) {
-    const fiche = await this.prisma.fiche.findFirst({
-      where: {
-        requests: {
-          some: { conversationId },
-        },
-      },
-      select: { responses: true },
-    });
+  /**
+   * Enrichit les réponses avec les libellés des questions et des options
+   * afin que le modèle IA puisse réellement comprendre les données
+   * (sinon il ne voit que des UUID / valeurs brutes et répond "Non précisé").
+   */
+  private buildMistidracsPayload(fiche: any, responses: any[]) {
+    const questions = (fiche.questions as FicheQuestion[]) || [];
+    const qMap = new Map<string, FicheQuestion>(
+      questions.map((q) => [q.id, q]),
+    );
 
-    if (!fiche || !Array.isArray(fiche.responses)) {
-      throw new NotFoundException('Aucune réponse trouvée');
+    return {
+      ficheId: fiche.ficheId,
+      ficheTitle: fiche.title,
+      responses: (responses ?? []).map((r: any) => ({
+        responseId: r.id,
+        submittedAt: r.submittedAt ?? null,
+        items: (r.items ?? []).map((it: any) => {
+          const question = qMap.get(it.questionId);
+          return {
+            question: question?.label ?? it.questionId,
+            answer: this.resolveAnswer(question, it),
+          };
+        }),
+      })),
+    };
+  }
+
+  private resolveAnswer(question: FicheQuestion | undefined, item: any) {
+    if (!question) {
+      return item?.valueText ?? item?.optionValue ?? null;
     }
 
-    return this.gemini.generateMistidracsSummary(
-      conversationId,
-      fiche.responses,
+    if (question.type === 'TEXT') {
+      return item?.valueText ?? null;
+    }
+
+    const optionLabels = new Map<string, string>(
+      (question.options ?? []).map((o) => [o.value, o.label]),
     );
+
+    const values = Array.isArray(item?.optionValue)
+      ? item.optionValue
+      : [item?.optionValue];
+
+    const labels = values
+      .filter((v: unknown) => v !== undefined && v !== null)
+      .map((v: string) => optionLabels.get(v) ?? v);
+
+    if (!labels.length) return null;
+    return question.multiple ? labels : labels[0];
+  }
+
+  /**
+   * Normalise les erreurs renvoyées par les fournisseurs IA (OpenAI / Gemini)
+   * pour propager le véritable problème (souscription, quota, clé invalide, etc.)
+   */
+  private toAiHttpException(e: unknown): HttpException {
+    if (e instanceof HttpException) return e;
+
+    const err = e as {
+      status?: unknown;
+      statusCode?: unknown;
+      message?: unknown;
+      error?: { status?: unknown; message?: unknown };
+    };
+
+    const status = Number(err?.status ?? err?.statusCode ?? err?.error?.status);
+
+    const rawMessage =
+      err?.error?.message ??
+      err?.message ??
+      (typeof e === 'string' ? e : undefined);
+    const message =
+      typeof rawMessage === 'string' ? rawMessage : 'Erreur du service IA';
+
+    if (Number.isInteger(status) && status >= 400 && status < 600) {
+      return new HttpException({ statusCode: status, message }, status);
+    }
+
+    return new HttpException({ statusCode: 502, message }, 502);
   }
 
   async explainFicheQuestion(

@@ -72,9 +72,9 @@ Transformer des fiches cliniques structurées en un résumé médical narratif d
 ────────────────────────────────────────
 STRUCTURE DU RÉSUMÉ CLINIQUE (CHAMP summary) :
 
-Le champ "summary" doit contenir **DEUX PARAGRAPHES DISTINCTS**, dans cet ordre strict :
+Le champ "summary" doit contenir **UN SEUL PARAGRAPHE** : le résumé clinique.
 
-PARAGRAPHE 1 — RÉSUMÉ CLINIQUE :
+PARAGRAPHE UNIQUE — RÉSUMÉ CLINIQUE :
 - Commencer obligatoirement par le symptôme principal.
 - L’ordre MISTIDRACS n’est pas obligatoire mais sert de référence.
 - La priorité est la cohérence et la logique médicale.
@@ -106,9 +106,9 @@ SIGNES ASSOCIÉS :
 - Ne pas répéter les informations déjà mentionnées.
 
 ────────────────────────────────────────
-PARAGRAPHE 2 — DRAPEAUX ROUGES (DESTINÉ AU MÉDECIN UNIQUEMENT) :
+CHAMP "drapeauRouge" — DRAPEAUX ROUGES (DESTINÉ AU MÉDECIN UNIQUEMENT) :
 
-- Ce paragraphe doit contenir uniquement des ALERTES CLINIQUES FACTUELLES.
+- Ce champ doit contenir uniquement des ALERTES CLINIQUES FACTUELLES.
 - Ne jamais poser de diagnostic.
 - Ne jamais interpréter.
 - Ne jamais extrapoler.
@@ -128,7 +128,8 @@ FORMAT DE SORTIE STRICT (JSON) :
 
 {
   "conversationId": number,
-  "summary": string
+  "summary": string,
+  "drapeauRouge": string
 }
 
 ────────────────────────────────────────
@@ -138,7 +139,8 @@ ${JSON.stringify({ conversationId, payload })}
 ────────────────────────────────────────
 INSTRUCTIONS CLINIQUES FINALES :
 
-- Le champ "summary" doit contenir exactement deux paragraphes séparés par un saut de ligne.
+- Le champ "summary" doit contenir uniquement le résumé clinique (paragraphe unique).
+- Le champ "drapeauRouge" doit contenir uniquement les alertes cliniques (paragraphe unique).
 - Aucun autre champ ne doit être ajouté.
 - Le résumé doit être immédiatement compréhensible par un médecin.
 - Toute ambiguïté doit être conservée, jamais corrigée.
@@ -157,7 +159,8 @@ INSTRUCTIONS CLINIQUES FINALES :
 
       if (
         parsed.conversationId !== conversationId ||
-        typeof parsed.summary !== 'string'
+        typeof parsed.summary !== 'string' ||
+        typeof parsed.drapeauRouge !== 'string'
       ) {
         throw new Error('Format Gemini invalide');
       }

@@ -169,11 +169,10 @@ import { SubmitFicheResponseDto } from './dto/submit-fiche-response.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 import { QuerySummaryAiDto } from './dto/query-summary-ai.dto';
-import { ExplainQuestionDto } from './dto/explain-question.dto';
+import { ExplainQuestionDto, AiProvider } from './dto/explain-question.dto';
 import { 
   ApiSubmitFicheResponse, 
   ApiListFicheResponses,
-  ApiConversationSummary,
   ApiMistidracsSummary,
   ApiExplainQuestion
 } from './decorators/api-messageries-responses.decorator';
@@ -263,31 +262,17 @@ export class MessageriesController {
     return this.svc.getFicheQuestionsAndResponses(Number(conversationId), Number(ficheId));
   }
 
-  @Get('fiches/summary/by-conversation/:conversationId')
-  @ApiOperation({ summary: 'Résumé automatique des fiches structurées (MISTIDRACS ou libres)' })
-async getConversationSummary(@Param('conversationId') conversationId: string) {
-  // return this.svc.generateConversationSummary(Number(conversationId));
-    return this.svc.generateConversationMistidracsGemini(
-    Number(conversationId),
-  );
-}
   @Get('fiches/summary-mistidracs/by-conversation/:conversationId')
   @ApiMistidracsSummary()
-  getMistidracsOpenAI(
+  getMistidracsSummary(
     @Param('conversationId') conversationId: string,
+    @Query('provider') provider?: AiProvider,
+    @Query('ficheId') ficheId?: string,
   ) {
-    return this.svc.generateConversationSummaryMistidracs(
+    return this.svc.generateConversationMistidracs(
       Number(conversationId),
-    );
-  }
-
-  @Get('fiches/summary-mistidracs-gemini/by-conversation/:conversationId')
-  @ApiMistidracsSummary()
-  getMistidracsGemini(
-    @Param('conversationId') conversationId: string,
-  ) {
-    return this.svc.generateConversationMistidracsGemini(
-      Number(conversationId),
+      provider,
+      ficheId ? Number(ficheId) : undefined,
     );
   }
 

@@ -7,7 +7,7 @@ describe('MessageriesController', () => {
   let svc: Record<string, jest.Mock>;
 
   beforeEach(async () => {
-    svc = { sendDmMessage: jest.fn(), listConversations: jest.fn(), listMessages: jest.fn(), markConversationRead: jest.fn(), getConversationAndMarkRead: jest.fn(), getUnreadOverview: jest.fn(), sendFicheRequest: jest.fn(), submitFicheResponse: jest.fn(), listFicheResponsesByConversation: jest.fn(), getFicheQuestionsAndResponses: jest.fn(), generateConversationMistidracsGemini: jest.fn(), generateConversationSummaryMistidracs: jest.fn(), explainFicheQuestion: jest.fn() };
+    svc = { sendDmMessage: jest.fn(), listConversations: jest.fn(), listMessages: jest.fn(), markConversationRead: jest.fn(), getConversationAndMarkRead: jest.fn(), getUnreadOverview: jest.fn(), sendFicheRequest: jest.fn(), submitFicheResponse: jest.fn(), listFicheResponsesByConversation: jest.fn(), getFicheQuestionsAndResponses: jest.fn(), generateConversationMistidracs: jest.fn(), explainFicheQuestion: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MessageriesController],
       providers: [{ provide: MessageriesService, useValue: svc }],

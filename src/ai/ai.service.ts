@@ -21,19 +21,22 @@ export class OpenaiService {
 Tu es un assistant médical expert.
 
 OBJECTIF :
-Produire un RÉSUMÉ CLINIQUE DE DOULEUR selon la méthode MISTIDRACS.
+Produire un RÉSUMÉ CLINIQUE DE DOULEUR selon la méthode MISTIDRACS, et identifier séparément les DRAPEAUX ROUGES.
 
 RÈGLES :
 - N'invente rien
 - Utilise uniquement le JSON fourni
 - "Non précisé" si absent
 - Français, style médical
-- 1 à 2 phrases
+- Le champ "summary" contient UNIQUEMENT le résumé clinique (1 à 2 phrases), SANS les drapeaux rouges
+- Le champ "drapeauRouge" contient UNIQUEMENT des alertes cliniques factuelles (vigilance, urgence potentielle, gravité possible) ; ne jamais poser de diagnostic ni extrapoler
+- Si aucun drapeau rouge n'est identifiable, écrire exactement : "Aucun drapeau rouge identifié à partir des données fournies."
 
 FORMAT JSON STRICT :
 {
   "conversationId": number,
-  "summary": string
+  "summary": string,
+  "drapeauRouge": string
 }
 
 DONNÉES :
@@ -52,7 +55,8 @@ ${JSON.stringify({ conversationId, payload })}
 
       if (
         parsed.conversationId !== conversationId ||
-        typeof parsed.summary !== 'string'
+        typeof parsed.summary !== 'string' ||
+        typeof parsed.drapeauRouge !== 'string'
       ) {
         throw new Error('Format OpenAI invalide');
       }

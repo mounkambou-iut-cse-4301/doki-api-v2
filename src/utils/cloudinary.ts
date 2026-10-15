@@ -63,6 +63,49 @@ function apercuData(data: string, max = 80): string {
   return data.length > max ? `${data.slice(0, max)}...` : data;
 }
 
+/** Decode a profile image and upload it; empty values leave the profile unchanged. */
+export const uploadProfileToCloudinary = async (
+  profile: string | null | undefined,
+  folder: string,
+): Promise<string | undefined> => {
+  if (profile == null || profile.trim() === '') return undefined;
+
+  const value = profile.trim();
+  if (/^https:\/\//i.test(value)) {
+    // Validate the URL without fetching or uploading the remote image.
+    new URL(value);
+    return profile;
+  }
+
+  const dataUrl = /^data:image\/[a-z0-9.+-]+;base64,([\s\S]+)$/i.exec(value);
+  const encoded = (dataUrl ? dataUrl[1] : value).replace(/\s/g, '');
+  const buffer = Buffer.from(encoded, 'base64');
+  if (
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) ||
+    buffer.length === 0 ||
+    buffer.toString('base64').replace(/=+$/, '') !== encoded.replace(/=+$/, '')
+  ) {
+    throw new Error(
+      'Le profil doit être une image base64 ou une URL HTTPS valide.',
+    );
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: 'image' },
+      (error, result) => {
+        if (error) return reject(new Error(error.message));
+        if (!result?.secure_url) {
+          return reject(new Error("Cloudinary n'a pas retourné l'URL du profil."));
+        }
+        resolve(result.secure_url);
+      },
+    );
+    stream.on('error', reject);
+    stream.end(buffer);
+  });
+};
+
 /**
  * Upload une image ou PDF (base64) ou garde l'URL si déjà HTTP
  */

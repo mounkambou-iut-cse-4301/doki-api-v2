@@ -14,7 +14,10 @@ import { UpdateMedecinDto } from './dto/update-medecin.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import * as bcrypt from 'bcryptjs';
 import { CreateAdminDto } from './dto/create-admin.dto';
-import { uploadImageToCloudinary } from 'src/utils/cloudinary';
+import {
+  uploadImageToCloudinary,
+  uploadProfileToCloudinary,
+} from 'src/utils/cloudinary';
 
 const userSafeSelect = {
   userId: true,
@@ -198,9 +201,17 @@ async signupMedecin(dto: CreateMedecinDto) {
         );
       }
 
+      const { profile, ...data } = dto;
+      const profileUrl = await uploadProfileToCloudinary(
+        profile,
+        `patients/profiles/${id}`,
+      );
       return this.prisma.user.update({
         where: { userId: id },
-        data: dto,
+        data: {
+          ...data,
+          ...(profileUrl !== undefined ? { profile: profileUrl } : {}),
+        },
       });
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ConflictException) throw error;
@@ -232,9 +243,17 @@ async signupMedecin(dto: CreateMedecinDto) {
         );
       }
 
+      const { profile, ...data } = dto;
+      const profileUrl = await uploadProfileToCloudinary(
+        profile,
+        `medecins/profiles/${id}`,
+      );
       return this.prisma.user.update({
         where: { userId: id },
-        data: dto,
+        data: {
+          ...data,
+          ...(profileUrl !== undefined ? { profile: profileUrl } : {}),
+        },
       });
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ConflictException) throw error;

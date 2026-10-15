@@ -10,6 +10,7 @@ import { UserType, Sex } from 'generated/prisma';
 
 jest.mock('src/utils/cloudinary', () => ({
   uploadImageToCloudinary: jest.fn(),
+  uploadProfileToCloudinary: jest.fn(),
 }));
 
 import { uploadImageToCloudinary } from 'src/utils/cloudinary';

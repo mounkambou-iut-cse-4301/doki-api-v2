@@ -170,9 +170,14 @@ export class SuivisService {
   }
 
   /** 4) Créer des suivis à partir d'un traitement d'ordonnance */
-  async createFromTreatment(treatment: any, ordonanceId: number, patientId: number) {
+  async createFromTreatment(
+    treatment: any,
+    ordonanceId: number,
+    patientId: number,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
     try {
-      const created = await this.prisma.suivi.create({
+      const created = await db.suivi.create({
         data: {
           patientId,
           ordonanceId,

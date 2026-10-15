@@ -53,37 +53,35 @@ export class OrdonancesService {
       }
     }
 
-    // Création de l'ordonnance
-    const ord = await this.prisma.ordonance.create({
-      data: {
-        reservation: { connect: { reservationId: dto.reservationId } },
-        medecin: { connect: { userId: dto.medecinId } },
-        patient: { connect: { userId: dto.patientId } },
-        name: dto.name ?? null,
-        dureeTraitement: dto.dureeTraitement,
-        traitement: dto.traitement as unknown as Prisma.InputJsonValue,
-        comment: dto.comment,
-        images: urls,
-      },
-    });
+    // L'ordonnance et ses suivis doivent être validés ou annulés ensemble.
+    const ord = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.ordonance.create({
+        data: {
+          reservation: { connect: { reservationId: dto.reservationId } },
+          medecin: { connect: { userId: dto.medecinId } },
+          patient: { connect: { userId: dto.patientId } },
+          name: dto.name ?? null,
+          dureeTraitement: dto.dureeTraitement,
+          traitement: dto.traitement as unknown as Prisma.InputJsonValue,
+          comment: dto.comment,
+          images: urls,
+        },
+      });
 
-    // Création automatique des suivis pour chaque traitement
-    for (const traitement of dto.traitement) {
-      if (traitement.isActive) {
-        try {
+      for (const traitement of dto.traitement) {
+        if (traitement.isActive) {
           await this.suivisService.createFromTreatment(
-            traitement, 
-            ord.ordonanceId, 
-            ord.patientId
+            traitement,
+            created.ordonanceId,
+            created.patientId,
+            tx,
           );
-        } catch (error) {
-          console.error('Erreur création suivi:', error);
-          // Continue même si un suivi échoue
         }
       }
-    }
+      return created;
+    });
 
-    // Notifications
+    // Notifications uniquement après la validation de la transaction.
     const titleFr = 'Nouvelle ordonnance';
     const titleEn = 'New prescription';
     const patientMsgFr = `Le Dr ${med.firstName} ${med.lastName} a émis une ordonnance${dto.name ? ` : ${dto.name}` : ''}. Les suivis de médicaments ont été programmés.`;

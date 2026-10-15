@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import request = require('supertest');
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,13 +8,19 @@ import { OrdonancesController } from './ordonances.controller';
 import { OrdonancesService } from './ordonances.service';
 import { SuivisController } from '../suivis/suivis.controller';
 import { SuivisService } from '../suivis/suivis.service';
+import { ordonnanceExamples } from './ordonances.swagger';
+import { UpdateOrdonanceDto } from './dto/update-ordonance.dto';
 
 // Real HTTP routes, DTO validation, prescription/follow-up services and Expo helper.
 // Database and external HTTP calls are simulated; no real patient receives a push.
 jest.mock('axios', () => ({ __esModule: true, default: { post: jest.fn() } }));
+jest.mock('src/utils/cloudinary', () => ({
+  uploadImageToCloudinary: jest
+    .fn()
+    .mockResolvedValue('https://example.com/uploaded.png'),
+}));
 
 const treatment = (name = 'Traitement fictif A') => ({
-  patientId: 20,
   name,
   dosage: 'Dosage de test',
   posologie: 'Posologie de test',
@@ -216,6 +223,7 @@ describe('Prescription delivery and automatic follow-up HTTP simulation', () => 
     expect(suivis.body.items).toHaveLength(1);
     expect(suivis.body.items[0]).toMatchObject({
       ...treatment(),
+      patientId: 20,
       ordonanceId: 40,
       startDate: '2026-10-15T00:00:00.000Z',
       endDate: '2026-10-17T00:00:00.000Z',
@@ -247,6 +255,7 @@ describe('Prescription delivery and automatic follow-up HTTP simulation', () => 
       'Traitement fictif A',
       'Traitement fictif B',
     ]);
+    expect(state.followUps.every((row) => row.patientId === 20)).toBe(true);
   });
 
   it('rejects a duplicate ordonnance without duplicating follow-ups or pushes', async () => {
@@ -257,13 +266,86 @@ describe('Prescription delivery and automatic follow-up HTTP simulation', () => 
     expect(post).toHaveBeenCalledTimes(2);
   });
 
-  it('currently requires patientId inside every treatment despite the top-level patientId', async () => {
+  it.each([20, 999])(
+    'ignores legacy nested patientId=%s and uses the ordonnance patient',
+    async (patientId) => {
+      const body = {
+        ...payload(),
+        traitement: [{ ...treatment(), patientId, ordonanceId: 999 }],
+      };
+      const response = await create(body).expect(201);
+      expect(response.body.traitement[0]).not.toHaveProperty('patientId');
+      expect(response.body.traitement[0]).not.toHaveProperty('ordonanceId');
+      expect(state.followUps[0]).toMatchObject({
+        patientId: 20,
+        ordonanceId: 40,
+      });
+      expect(post.mock.calls[0][1].to).toBe(
+        'ExponentPushToken[patient-simulation]',
+      );
+    },
+  );
+
+  it('still requires the top-level patientId', async () => {
     const body: any = payload();
-    delete body.traitement[0].patientId;
+    delete body.patientId;
     const response = await create(body).expect(400);
     expect(response.body.message.join(' ')).toContain('patientId');
     expect(state.prescriptions).toHaveLength(0);
+    expect(post).not.toHaveBeenCalled();
   });
+
+  it('still requires patientId when creating a standalone follow-up', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/suivis')
+      .send(treatment())
+      .expect(400);
+    expect(response.body.message.join(' ')).toContain('patientId');
+    expect(prisma.suivi.create).not.toHaveBeenCalled();
+  });
+
+  it('also validates PATCH treatments without patientId', async () => {
+    const body = await new ValidationPipe({
+      transform: true,
+      whitelist: true,
+    }).transform(
+      { traitement: [treatment()] },
+      { type: 'body', metatype: UpdateOrdonanceDto },
+    );
+    expect(body.traitement[0]).toEqual(treatment());
+  });
+
+  it('documents treatment schemas without patientId or ordonanceId', () => {
+    const doc = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder().setTitle('Simulation').setVersion('1').build(),
+    );
+    const schemas = doc.components!.schemas!;
+    const treatmentSchema = schemas.OrdonanceTreatmentDto as any;
+    expect(treatmentSchema.properties).not.toHaveProperty('patientId');
+    expect(treatmentSchema.properties).not.toHaveProperty('ordonanceId');
+    expect((schemas.CreateOrdonanceDto as any).required).toContain('patientId');
+    expect((schemas.CreateSuiviDto as any).required).toContain('patientId');
+  });
+
+  it.each(Object.entries(ordonnanceExamples))(
+    'accepts Swagger example %s without nested patientId',
+    async (_name, example) => {
+      const body = example.value;
+      for (const item of body.traitement)
+        expect(item).not.toHaveProperty('patientId');
+      await request(app.getHttpServer())
+        .post('/ordonances')
+        .send(body)
+        .expect(201);
+      expect(state.followUps).toHaveLength(
+        body.traitement.filter((item) => item.isActive).length,
+      );
+      expect(
+        state.followUps.every((row) => row.patientId === body.patientId),
+      ).toBe(true);
+    },
+  );
 
   it.each(['Traitement fictif A', 'Traitement fictif B'])(
     'rolls back the ordonnance and all follow-ups without notifications when %s fails',

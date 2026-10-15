@@ -1,11 +1,13 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiExtraModels, ApiOperation, ApiParam, ApiResponse, ApiTags, getSchemaPath } from '@nestjs/swagger';
 import { OrdonancesService } from './ordonances.service';
 import { CreateOrdonanceDto } from './dto/create-ordonance.dto';
 import { UpdateOrdonanceDto } from './dto/update-ordonance.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 import { OrdonanceFilterDto } from './dto/ordonance-filter.dto';
+import { OrdonanceTreatmentDto } from './dto/ordonance-treatment.dto';
+import { createOrdonnanceDescription, ordonnanceExamples } from './ordonances.swagger';
 
  @ApiBearerAuth('JWT-auth')
   // @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
@@ -15,8 +17,36 @@ export class OrdonancesController {
 
     constructor(private readonly svc: OrdonancesService) {}
  @Post()
-  @ApiOperation({ summary: 'Créer une ordonnance' })
-  @ApiResponse({ status: 201, description: 'Ordonnance créée.' })
+  @ApiOperation({ summary: 'Créer une ordonnance (manuelle ou issue d’un protocole)', description: createOrdonnanceDescription })
+  @ApiExtraModels(CreateOrdonanceDto, OrdonanceTreatmentDto)
+  @ApiBody({
+    required: true,
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(CreateOrdonanceDto) },
+        {
+          type: 'object',
+          properties: {
+            traitement: {
+              type: 'array', minItems: 1,
+              items: {
+                allOf: [
+                  { $ref: getSchemaPath(OrdonanceTreatmentDto) },
+                  { type: 'object', required: ['dosage', 'forme', 'voie', 'posologie', 'instructions'] },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+    examples: ordonnanceExamples,
+  })
+  @ApiResponse({ status: 201, description: 'Ordonnance et suivis actifs créés. La livraison des notifications et du push n’est pas confirmée par ce statut.' })
+  @ApiResponse({ status: 400, description: 'Corps invalide, patientId principal absent ou traitement manquant ou incomplet.' })
+  @ApiResponse({ status: 404, description: 'Médecin, patient ou réservation introuvable.' })
+  @ApiResponse({ status: 409, description: 'Une ordonnance existe déjà pour cette réservation.' })
+  @ApiResponse({ status: 500, description: 'Erreur de création. Si l’écriture de l’ordonnance ou d’un suivi échoue, la transaction est annulée et aucune notification n’est déclenchée.' })
   create(@Body() dto: CreateOrdonanceDto) {
     return this.svc.create(dto);
   }

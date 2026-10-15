@@ -1,6 +1,6 @@
 // src/protocoles-ordonance/protocoles-ordonance.controller.ts
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiExtraModels, ApiOperation, ApiParam, ApiResponse, ApiTags, getSchemaPath } from '@nestjs/swagger';
 import { ProtocolesOrdonanceService } from './protocoles-ordonance.service';
 import { CreateProtocoleOrdonanceDto } from './dto/create-protocole-ordonance.dto';
 import { UpdateProtocoleOrdonanceDto } from './dto/update-protocole-ordonance.dto';
@@ -10,6 +10,7 @@ import { ActiveAndVerifiedGuard } from 'src/auth/guards/active-verified.guard';
 import { QueryMedicamentDto } from './dto/query-medicament.dto';
 import { UpdateMedicamentDto } from './dto/update-medicament.dto';
 import { CreateMedicamentDto } from './dto/create-medicament.dto';
+import { protocoleExample } from 'src/ordonances/ordonances.swagger';
 
 @ApiBearerAuth('JWT-auth')
 // @UseGuards(JwtAuthGuard, ActiveAndVerifiedGuard)
@@ -64,7 +65,16 @@ export class ProtocolesOrdonanceController {
 
 
   @Post()
-  @ApiOperation({ summary: 'Créer un protocole ordonnance (nom maladie + traitement pré-rempli)' })
+  @ApiOperation({
+    summary: 'Créer un protocole ordonnance (modèle réutilisable)',
+    description: 'Enregistre un modèle nommé avec un tableau de traitements JSON. Cette route ne crée ni ordonnance patient, ni suivi, ni notification. Pour envoyer ce protocole à un patient : lire item.traitement via GET /protocoles-ordonance/{id}, adapter les traitements et dates, puis appeler POST /ordonances avec reservationId, medecinId, patientId et traitement. patientId est fourni uniquement au niveau principal, jamais dans les traitements. Voir l’exemple « Envoyer un protocole adapté au patient » dans POST /ordonances. Le nom du protocole doit être unique.',
+  })
+  @ApiExtraModels(CreateProtocoleOrdonanceDto)
+  @ApiBody({
+    required: true,
+    schema: { $ref: getSchemaPath(CreateProtocoleOrdonanceDto) },
+    examples: { modele: { summary: 'Modèle à adapter avant envoi au patient', value: protocoleExample } },
+  })
   @ApiResponse({ status: 201, description: 'Protocole créé.' })
   create(@Body() dto: CreateProtocoleOrdonanceDto) { return this.svc.create(dto); }
 
@@ -75,7 +85,7 @@ export class ProtocolesOrdonanceController {
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProtocoleOrdonanceDto) { return this.svc.update(id, dto); }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtenir un protocole par ID' })
+  @ApiOperation({ summary: 'Obtenir un protocole par ID', description: 'Retourne { item }. Pour créer une ordonnance depuis ce modèle, reprendre item.traitement, adapter les dates et les prises, puis envoyer le corps complet à POST /ordonances avec patientId au niveau principal uniquement. Envoyer uniquement protocoleId n’est pas pris en charge.' })
   @ApiParam({ name: 'id', type: 'integer' })
   @ApiResponse({ status: 200, description: 'Protocole retourné.' })
   findOne(@Param('id', ParseIntPipe) id: number) { return this.svc.findOne(id); }

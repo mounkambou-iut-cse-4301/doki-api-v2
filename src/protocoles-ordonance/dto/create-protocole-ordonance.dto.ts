@@ -13,7 +13,7 @@ export class CreateProtocoleOrdonanceDto {
   @IsOptional() @IsString() @MaxLength(500)
   description?: string;
 
-  @ApiProperty({description: 'Traitement pré-rempli' })
+  @ApiProperty({ type: 'array', items: { type: 'object', additionalProperties: true }, description: 'Tableau JSON de traitements modèles. Pour réutiliser ces éléments dans POST /ordonances, compléter les champs requis et adapter les dates, la fréquence et les heures. patientId est renseigné uniquement au niveau principal de l’ordonnance, pas dans les traitements. La création du protocole ne crée pas de suivis.' })
   @IsArray() 
   // @ValidateNested({ each: true }) @Type(() => TreatmentItemDto)
   traitement: JSON;
